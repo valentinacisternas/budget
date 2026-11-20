@@ -176,7 +176,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.6"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.7"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -268,6 +268,8 @@ function totals(m, ym) {
 }
 function debtPaid(d, uptoYm) { return Object.entries(d.payments).filter(([k]) => !uptoYm || k <= uptoYm).reduce((a, [, v]) => a + (Number(v) || 0), 0); }
 function debtLeft(d, uptoYm) {
+  // a loan with a repayment schedule: what is left is the capital still to repay (interest not included)
+  if (d.principal) return round2(sum(Object.entries(d.principal).filter(([k]) => k >= (uptoYm || ymNow())), ([, v]) => v));
   if (d.plan) return round2(sum(Object.entries(d.plan).filter(([k]) => k >= (uptoYm || ymNow())), ([, v]) => v));
   return Math.max(0, (Number(d.total) || 0) - debtPaid(d, uptoYm));
 }
@@ -489,7 +491,8 @@ function viewDebts() {
   const perMonth = sum(open, (d) => (d.plan ? debtFor(d, ymNow()) : d.monthly || 0));
   // the mountain: debts where we know what is left (a plan or an original total)
   const climb = open.filter((d) => d.plan || d.total);
-  const cLeft = sum(climb, (d) => debtLeft(d)), cPaid = sum(climb, (d) => debtPaid(d, ymShift(ymNow(), -1)));
+  // paid so far: for a loan, the capital already repaid (original amount minus what is left)
+  const cLeft = sum(climb, (d) => debtLeft(d)), cPaid = sum(climb, (d) => (d.principal && d.total ? Math.max(0, d.total - debtLeft(d)) : debtPaid(d, ymShift(ymNow(), -1))));
   if (climb.length && cLeft + cPaid > 0) {
     html = `<div class="mtn">${mountainSvg(cPaid / (cPaid + cLeft))}
       <div class="mtn-panel">${(() => { const p = cPaid / (cPaid + cLeft), nx = MILESTONES.find((m) => m.at > p + 1e-9);
@@ -512,12 +515,15 @@ function debtCard(d) {
   const endYm = months ? ymShift(ymNow(), months - 1) : null;
   const hist = Object.entries(d.payments).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6);
   if (d.plan) {
-    const now = ymNow(), next = Object.entries(d.plan).filter(([k, v]) => k >= now && v > 0).sort();
+    const now = ymNow(), all = Object.entries(d.plan).filter(([k, v]) => k >= now && v > 0).sort(), next = all.slice(0, 12);
     const items = (d.planItems && d.planItems[now]) || [];
+    const withInterest = round2(sum(all, ([, v]) => v));
     return `<div class="card" data-act="editDebt" data-id="${d.id}">
       <div class="row"><b class="grow">${esc(d.name)}</b><span class="num">quedan <b>${eur(left)}</b></span></div>
-      <div class="small muted" style="margin-top:4px">${next.length ? `Terminas en ${ymLabel(next[next.length - 1][0])}` : "Nada pendiente"}${d.planDate ? ` · plan del ${d.planDate.split("-").reverse().join(".")}` : ""}</div>
-      ${next.length ? `<div style="margin-top:10px">${next.map(([k, v]) => `<div class="row small" style="padding:3px 0"><span style="width:62px" class="muted">${ymLabel(k, true)}</span><div class="grow bar" style="margin:0"><i style="width:${(v / Math.max(...next.map((x) => x[1]))) * 100}%"></i></div><span class="num" style="width:76px;text-align:right">${eur(v)}</span></div>`).join("")}</div>` : ""}
+      <div class="small muted" style="margin-top:4px">${all.length ? `Terminas en ${ymLabel(all[all.length - 1][0])}` : "Nada pendiente"}${d.planDate ? ` · plan del ${d.planDate.split("-").reverse().join(".")}` : ""}</div>
+      ${d.principal ? `<div class="small" style="margin-top:6px">Es el capital. Con intereses pagas en total <b>${eur(withInterest)}</b> en ${all.length} cuotas${d.rate ? ` · tasa ${String(d.rate).replace(".", ",")} %` : ""}.</div>
+        ${d.total ? `<div class="bar"><i style="width:${Math.min(100, ((d.total - left) / d.total) * 100)}%"></i></div><div class="small muted" style="margin-top:4px">${eur(d.total - left, false)} de capital pagado de ${eur(d.total, false)}</div>` : ""}` : ""}
+      ${next.length ? `<div style="margin-top:10px">${next.map(([k, v]) => `<div class="row small" style="padding:3px 0"><span style="width:62px" class="muted">${ymLabel(k, true)}</span><div class="grow bar" style="margin:0"><i style="width:${(v / Math.max(...next.map((x) => x[1]))) * 100}%"></i></div><span class="num" style="width:76px;text-align:right">${eur(v)}</span></div>`).join("")}${all.length > next.length ? `<div class="small muted" style="padding-top:4px">y ${all.length - next.length} meses más</div>` : ""}</div>` : ""}
       ${items.length ? `<div class="small" style="margin-top:10px"><b>Por pagar este mes</b>${items.map((it) => `<div class="row" style="padding:2px 0"><span class="grow">${esc(it.merchant)}${it.installment ? ` <span class="muted">${esc(it.installment)}</span>` : ""}</span><span class="muted">${it.day ? it.day + "." : ""}</span><span class="num" style="width:70px;text-align:right">${eur(it.amount)}</span></div>`).join("")}</div>` : ""}
       ${hist.length ? `<div class="small muted" style="margin-top:8px">Pagado (banco): ${hist.map(([k, v]) => `${ymLabel(k, true)} ${eur(v, false)}`).join(" · ")}</div>` : ""}
     </div>`;
@@ -993,7 +999,7 @@ async function importCsv(files) {
   try {
     for (const f of files) {
       const buf = await f.arrayBuffer(); let text = new TextDecoder("utf-8").decode(buf);
-      if (/^\s*\{/.test(text)) { const o = JSON.parse(text); if (o.source === "setup") { importSetup(o); continue; } if (o.source !== "klarna") throw new Error("Ese JSON no es un plan de Klarna ni una configuración (las copias se cargan en Restaurar)"); importKlarna(o); continue; }
+      if (/^\s*\{/.test(text)) { const o = JSON.parse(text); if (o.source === "setup") { importSetup(o); continue; } if (o.source !== "klarna" && o.source !== "debtplan") throw new Error("Ese JSON no es un plan de Klarna ni una configuración (las copias se cargan en Restaurar)"); importKlarna(o); continue; }
       if (text.includes("�")) text = new TextDecoder("windows-1252").decode(buf);
       bankRows(text).forEach((t) => { total++; if (!db.tx[t.id]) { db.tx[t.id] = t; added++; } });
     }
@@ -1014,17 +1020,21 @@ function importSetup(o) {
   let at = -1; others.forEach((r, i) => { if (r.to.kind === "savings") at = i; });
   db.rules = [...others.slice(0, at + 1), ...moves, ...others.slice(at + 1)];
 }
-/* Klarna has no export: its app's "Due in <month>" screens are turned into a plan file on the Mac. */
+/* Payment plans made on the Mac from screenshots: Klarna ("Due in <month>") or a loan's repayment
+   schedule ("debtplan": months with the instalment and the principal part, plus balance and rate). */
 function importKlarna(o) {
-  let d = db.debts.find((x) => norm(x.name) === "klarna");
-  if (!d) { d = { id: uid(), name: "Klarna", total: 0, monthly: 0, payments: {}, closed: false }; db.debts.push(d); }
+  const name = o.name || "Klarna";
+  let d = db.debts.find((x) => norm(x.name) === norm(name));
+  if (!d) { d = { id: uid(), name, total: 0, monthly: 0, payments: {}, closed: false }; db.debts.push(d); }
   d.plan = {}; d.planItems = {}; d.planDate = o.date || new Date().toISOString().slice(0, 10); d.closed = false;
+  delete d.principal; if (o.rate) d.rate = o.rate;
   Object.entries(o.months || {}).forEach(([ym, m]) => {
     const due = (m.items || []).filter((it) => it.section === "due");
     d.plan[ym] = round2(m.due_total != null ? m.due_total : sum(due));
-    d.planItems[ym] = due.map(({ day, merchant, amount, installment }) => ({ day, merchant, amount, installment }));
+    if (due.length) d.planItems[ym] = due.map(({ day, merchant, amount, installment }) => ({ day, merchant, amount, installment }));
+    if (m.principal != null) (d.principal = d.principal || {})[ym] = m.principal;
   });
-  d.total = round2(debtPaid(d) + debtLeft(d));
+  d.total = o.total ? round2(o.total) : round2(debtPaid(d) + debtLeft(d));
 }
 function allNames() { const s = new Set(); Object.values(db.months).forEach((m) => ["income", "fixed", "variable", "savings"].forEach((k) => m[k].forEach((x) => s.add(x.name)))); db.debts.forEach((d) => s.add(d.name)); return [...s].sort(); }
 const KINDS = [["cat", "Gasto del día a día"], ["fixed", "Gasto fijo"], ["variable", "Gasto variable"], ["savings", "Ahorro"], ["debt", "Deuda"], ["income", "Ingreso"], ["ignore", "Ignorar (entre mis cuentas)"]];
