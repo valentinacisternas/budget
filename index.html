@@ -189,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.20"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.21"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -230,11 +230,12 @@ function load() {
   // N26 instalments used to be a variable line: now they are a debt (repayments) plus a refund of the split purchase
   const i26 = (d.rules || []).findIndex((r) => norm(r.match) === "n26aplazos" && r.to && r.to.kind === "variable");
   if (i26 >= 0) {
-    d.rules.splice(i26, 1, { id: "n26ap1", match: "n26aplazos", to: { kind: "debt", name: "N26 a plazos", shift: true }, sign: "-" }, { id: "n26ap2", match: "n26aplazos", to: { kind: "cat", cat: "Compras" }, sign: "+" });
+    d.rules.splice(i26, 1, { id: "n26ap1", match: "n26aplazos", to: { kind: "debt", name: "N26 a plazos", shift: "end" }, sign: "-" }, { id: "n26ap2", match: "n26aplazos", to: { kind: "cat", cat: "Compras" }, sign: "+" });
     Object.values(d.months || {}).forEach((m) => (m.variable = m.variable.filter((x) => norm(x.name) !== "n26aplazos")));
     d.reapply = true;
   }
-  (d.rules || []).forEach((r) => { if (norm(r.match) === "klarna" && r.to && r.to.kind === "debt") r.to.shift = true; });
+  // instalment debts (Klarna, N26): only what is charged on the last days of the month belongs to the next one
+  (d.rules || []).forEach((r) => { if (["klarna", "n26aplazos"].includes(norm(r.match)) && r.to && r.to.kind === "debt") r.to.shift = "end"; });
   return d;
 }
 let db = load();
@@ -1064,7 +1065,7 @@ function defaultRules() {
     R("finanzamt", { kind: "income", name: "Devolución impuestos" }, "+"),
     R("ahorro", { kind: "savings", name: "N26 Ahorro" }),
     // moves between my own accounts come before Klarna/shop words that may appear in a transfer note
-    R("n26aplazos", { kind: "debt", name: "N26 a plazos", shift: true }, "-"), // N26 instalments: a debt with its own plan
+    R("n26aplazos", { kind: "debt", name: "N26 a plazos", shift: "end" }, "-"), // N26 instalments: a debt with its own plan
     R("n26aplazos", { kind: "cat", cat: "Compras" }, "+"),                     // splitting a purchase gives its amount back
     R("n26", { kind: "transfer" }),
     R("kreditanstalt", { kind: "debt", name: "KFW" }),
@@ -1078,7 +1079,7 @@ function defaultRules() {
     R("netflix", { kind: "fixed", name: "Netflix" }),
     R("spotify", { kind: "fixed", name: "Spotify" }),
     R("rundfunk", { kind: "variable", name: "Radio Tax" }),
-    R("klarna", { kind: "debt", name: "Klarna", shift: true }, "-"), // from the 20th it is paid with next month's salary
+    R("klarna", { kind: "debt", name: "Klarna", shift: "end" }, "-"), // charged on the 30th/31st (last day in February): next month
     R("klarna", { kind: "cat", cat: "Compras" }, "+"),
     ...C("Comida fuera", "ubereats", "takeaway", "lieferando", "wolt", "neotaste", "mcdonald", "burgerking", "tgtg", "toogoodtogo"),
     ...C("Transporte", "uber", "mvg", "bolt", "flixbus", "voitechnology"),
@@ -1158,7 +1159,8 @@ function applyBank() {
   const n26Months = new Set(txs.filter((t) => t.acct === "n26").map((t) => t.date.slice(0, 7)));
   const byYm = {};
   txs.forEach((t) => { const to = classify(t); let ym = t.date.slice(0, 7);
-    if (to.shift && Number(t.date.slice(8, 10)) >= 20) ym = ymShift(ym, 1); // salary and rent at month end belong to next month
+    // salary and rent from the 20th belong to next month; instalments ("end") only from the 30th, or the last day of February
+    if (to.shift && Number(t.date.slice(8, 10)) >= (to.shift === "end" ? Math.min(30, new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate()) : 20)) ym = ymShift(ym, 1);
     (byYm[ym] = byYm[ym] || []).push([t, to]); });
   const first = txs[0].date.slice(0, 7);
   const last = [ymNow(), ...Object.keys(byYm)].sort().pop();
