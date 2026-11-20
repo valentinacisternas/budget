@@ -178,7 +178,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.8"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.9"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -864,13 +864,15 @@ function expenseDialog(id, presetCat) {
   let cat = e?.cat || presetCat || db.cats[0];
   openDialog(`<form method="dialog"><h3>${e ? "Editar gasto" : "Anotar gasto"}</h3>
     <div class="field"><label>Importe €</label><input name="amount" inputmode="decimal" value="${e ? String(e.amount).replace(".", ",") : ""}" required style="font-size:24px;text-align:right"></div>
-    <div class="field"><label>Categoría</label><div class="chips" id="catChips">${db.cats.map((c) => `<button type="button" data-cat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}</div></div>
+    <div class="field"><label>Categoría</label><div class="chips" id="catChips">${db.cats.map((c) => `<button type="button" data-cat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}<button type="button" data-new style="border:1.5px dashed var(--line);background:transparent">+ Nueva</button></div></div>
     <div class="field"><label>Nota (opcional)</label><input name="note" value="${esc(e?.note || "")}" placeholder="Rewe, cena con amigas…"></div>
     <div class="field"><label>Fecha</label><input name="date" type="date" value="${defDate}"></div>
     <div class="actions">${e ? `<button type="button" class="danger" data-del>Borrar</button><span class="grow"></span>` : ""}<button type="button" data-close>Cancelar</button><button class="primary">Guardar</button></div></form>`,
   (d) => {
     const f = d.querySelector("form");
-    d.querySelector("#catChips").onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; cat = b.dataset.cat; d.querySelectorAll("#catChips button").forEach((x) => x.classList.toggle("on", x === b)); };
+    d.querySelector("#catChips").onclick = (ev) => { let b = ev.target.closest("button"); if (!b) return;
+      if (b.hasAttribute("data-new")) { b = addCatChip(b); if (!b) return; }
+      cat = b.dataset.cat; d.querySelectorAll("#catChips button").forEach((x) => x.classList.toggle("on", x === b)); };
     f.onsubmit = (ev) => { ev.preventDefault(); const amount = num(f.amount.value); if (!amount) return;
       const date = f.date.value || defDate; const targetYm = date.slice(0, 7);
       const rec = { amount, cat, note: f.note.value.trim(), date };
@@ -1097,6 +1099,14 @@ function importKlarna(o) {
   });
   d.total = o.total ? round2(o.total) : round2(debtPaid(d) + debtLeft(d));
 }
+/* "+ Nueva" inside a category list: create the category on the spot and return its chip */
+function addCatChip(newBtn) {
+  const c = (prompt("Nombre de la categoría nueva") || "").trim(); if (!c) return null;
+  if (!db.cats.includes(c)) { db.cats.splice(Math.max(0, db.cats.indexOf(UNCAT)), 0, c); save(); }
+  let chip = [...newBtn.parentNode.querySelectorAll("[data-cat]")].find((x) => x.dataset.cat === c);
+  if (!chip) { chip = document.createElement("button"); chip.type = "button"; chip.dataset.cat = c; chip.textContent = c; newBtn.before(chip); }
+  return chip;
+}
 function allNames() { const s = new Set(); Object.values(db.months).forEach((m) => ["income", "fixed", "variable", "savings"].forEach((k) => m[k].forEach((x) => s.add(x.name)))); db.debts.forEach((d) => s.add(d.name)); return [...s].sort(); }
 const KINDS = [["cat", "Gasto del día a día"], ["fixed", "Gasto fijo"], ["variable", "Gasto variable"], ["savings", "Ahorro"], ["debt", "Deuda"], ["income", "Ingreso"], ["ignore", "Ignorar (entre mis cuentas)"]];
 function txDialog(txid) {
@@ -1106,7 +1116,7 @@ function txDialog(txid) {
   openDialog(`<form><h3>${eur(t.amount)} · ${esc(displayName(t))}</h3>
     <p class="small muted" style="margin-top:-6px">${t.date.split("-").reverse().join(".")} · ${t.acct === "n26" ? "N26" : "Commerzbank"}${t.bankCat ? " · " + esc(t.bankCat) : ""}<br>${esc(t.text.slice(0, 160))}</p>
     <div class="field"><label>Qué es</label><select name="kind">${KINDS.map(([k, l]) => `<option value="${k}" ${k === curKind ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-    <div class="field" data-for="cat"><label>Categoría</label><div class="chips" id="catChips">${db.cats.map((c) => `<button type="button" data-cat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}</div></div>
+    <div class="field" data-for="cat"><label>Categoría</label><div class="chips" id="catChips">${db.cats.map((c) => `<button type="button" data-cat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}<button type="button" data-new style="border:1.5px dashed var(--line);background:transparent">+ Nueva</button></div></div>
     <div class="field" data-for="name"><label>Nombre de la línea</label><input name="name" list="names" value="${esc(cur.name || displayName(t))}"><datalist id="names">${allNames().map((n) => `<option value="${esc(n)}">`).join("")}</datalist></div>
     <div class="field"><label><input type="checkbox" name="always" checked style="width:auto;vertical-align:-2px"> Hacer lo mismo con todo lo que contenga:</label><input name="match" value="${esc(displayName(t))}"></div>
     <div class="actions"><button type="button" data-close>Cancelar</button><button class="primary">Guardar</button></div></form>`,
@@ -1114,7 +1124,9 @@ function txDialog(txid) {
     const f = d.querySelector("form");
     const sync = () => { const k = f.kind.value; d.querySelector('[data-for="cat"]').hidden = k !== "cat"; d.querySelector('[data-for="name"]').hidden = k === "cat" || k === "ignore"; };
     f.kind.onchange = sync; sync();
-    d.querySelector("#catChips").onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; cat = b.dataset.cat; d.querySelectorAll("#catChips button").forEach((x) => x.classList.toggle("on", x === b)); };
+    d.querySelector("#catChips").onclick = (ev) => { let b = ev.target.closest("button"); if (!b) return;
+      if (b.hasAttribute("data-new")) { b = addCatChip(b); if (!b) return; }
+      cat = b.dataset.cat; d.querySelectorAll("#catChips button").forEach((x) => x.classList.toggle("on", x === b)); };
     d.querySelector("[data-close]").onclick = () => d.close();
     f.onsubmit = (ev) => { ev.preventDefault();
       const k = f.kind.value; const name = f.name.value.trim();
