@@ -121,6 +121,7 @@
 
 <script>
 "use strict";
+const APP_VERSION = "2026-11-20.4"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -415,6 +416,9 @@ function viewMore() {
       <div class="line"><div class="grow"><b>Restaurar</b><div class="small muted">Carga un .json exportado. Reemplaza todo.</div></div><button data-act="pickJson">Restaurar</button></div>
     </div>
     <h2>Categorías de gastos</h2><div class="card"><div class="chips">${db.cats.map((c) => `<button data-act="delCat" data-cat="${esc(c)}">${esc(c)} ×</button>`).join("")}<button class="on" data-act="addCat">+ Nueva</button></div></div>
+    <h2>App</h2><div class="card">
+      <div class="line"><div class="grow"><b>Versión ${APP_VERSION}</b><div class="small muted" id="verStatus">${state.newVersion ? `Hay una versión nueva: ${esc(state.newVersion)}` : "Toca para buscar una versión nueva."}</div></div><button class="${state.newVersion ? "primary" : ""}" data-act="update">Actualizar app</button></div>
+    </div>
     <h2>Peligro</h2><div class="card"><button class="danger" data-act="wipe">Borrar todos los datos</button></div>`;
 }
 
@@ -739,6 +743,7 @@ document.addEventListener("click", (e) => {
       const l = document.createElement("a"); l.href = u; l.download = "budget-" + new Date().toISOString().slice(0, 10) + ".json"; l.click(); setTimeout(() => URL.revokeObjectURL(u), 1000); break; }
     case "addCat": { const c = (prompt("Nueva categoría") || "").trim(); if (c && !db.cats.includes(c)) { db.cats.push(c); save(); render(); } break; }
     case "delCat": if (db.cats.length > 1 && confirm("¿Quitar la categoría " + t.dataset.cat + "? Los gastos guardados la mantienen.")) { db.cats = db.cats.filter((c) => c !== t.dataset.cat); save(); render(); } break;
+    case "update": checkUpdate(true); break;
     case "wipe": if (confirm("¿Borrar TODO? Exporta una copia antes si la quieres.") && confirm("¿Seguro?")) { localStorage.removeItem(KEY); db = load(); save(); render(); } break;
   }
 });
@@ -748,7 +753,20 @@ $("#fileJson").onchange = async (e) => { const f = e.target.files[0]; e.target.v
   try { const d = JSON.parse(await f.text()); if (!d.months) throw 0; if (!confirm("¿Reemplazar todo con esta copia?")) return; d.cats = d.cats || DEFAULT_CATS.slice(); d.debts = d.debts || []; d.tx = d.tx || {}; d.overrides = d.overrides || {}; d.rules = d.rules || defaultRules(); db = d; save(); render(); toast("Copia restaurada"); }
   catch (err) { toast("Ese archivo no es una copia válida"); } };
 
+/* The home-screen app can keep an old copy for a while. Ask the server for the page without cache and
+   reload with a fresh URL when its version is different. Data stays: it lives in this device's storage. */
+async function checkUpdate(manual) {
+  try {
+    const html = await (await fetch(location.pathname + "?check=" + Date.now(), { cache: "no-store" })).text();
+    const v = (html.match(/APP_VERSION = "([^"]+)"/) || [])[1];
+    if (!v) { if (manual) toast("No pude revisar la versión"); return; }
+    if (v === APP_VERSION) { state.newVersion = ""; if (manual) { toast("Ya tienes la última versión"); render(); } return; }
+    if (manual) { toast("Actualizando…"); setTimeout(() => location.replace(location.pathname + "?v=" + encodeURIComponent(v)), 400); return; }
+    state.newVersion = v; render(); toast("Hay una versión nueva: Más → Actualizar app");
+  } catch (e) { if (manual) toast("Sin conexión: no pude revisar"); }
+}
 render();
+checkUpdate(false);
 </script>
 </body>
 </html>
