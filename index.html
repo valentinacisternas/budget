@@ -189,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.15"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.17"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -226,6 +226,7 @@ function load() {
   d.wish = d.wish || [];
   d.limits = d.limits || {};
   d.goals = d.goals || [];
+  d.prices = d.prices || {};
   return d;
 }
 let db = load();
@@ -246,10 +247,33 @@ const getMonth = (ym) => db.months[ym];
 function latestBefore(ym) { return Object.keys(db.months).filter((k) => k < ym).sort().pop(); }
 function createMonth(ym, fromYm) {
   const m = planFrom(fromYm && db.months[fromYm], fromYm && db.months[ymShift(fromYm, -1)]);
-  db.months[ym] = m; ensureSalary(m);
+  db.months[ym] = m; ensureSalary(m); applyPrices(m, ym);
   // continuing debts: carry this month's planned payment from the previous one
   db.debts.forEach((d) => { if (!d.closed && !d.plan && fromYm && d.payments[fromYm] != null && d.payments[ym] == null && (!d.total || debtLeft(d, ym) > 0)) d.payments[ym] = d.monthly || d.payments[fromYm]; });
   save(); return m;
+}
+/* Price changes of repeating payments (Más barato unos meses, sube desde…): db.prices[key] = { name, list: [{ from, to, amount, normal }] }.
+   Within from..to the plan line costs `amount`; after `to` it goes back to `normal`. */
+function priceFor(key, ym) {
+  const p = db.prices[key]; if (!p) return null;
+  const on = p.list.find((x) => x.from <= ym && (!x.to || ym <= x.to)); if (on) return { amount: on.amount };
+  const ended = p.list.filter((x) => x.to && x.to < ym && x.normal != null).sort((a, b) => b.to.localeCompare(a.to))[0];
+  return ended ? { amount: ended.normal, after: true } : null;
+}
+function applyPrices(m, ym) {
+  if (isClosed(ym)) return;
+  Object.entries(db.prices).forEach(([key, p]) => { const pr = priceFor(key, ym); if (!pr) return;
+    let line = m.fixed.find((x) => norm(x.name) === key);
+    if (!line) { if (ym < p.list[0].from) return; line = { id: uid(), name: p.name, amount: 0 }; m.fixed.push(line); }
+    if (line.paid == null) line.amount = pr.amount; });
+}
+/* After a bank import: a fixed payment that changed price this month keeps the new price in the months already planned */
+function carryPrices() {
+  const lb = lastBankYm(), src = lb && db.months[lb]; if (!src) return;
+  Object.keys(db.months).filter((k) => k > lb).forEach((k) => db.months[k].fixed.forEach((x) => {
+    if (x.paid != null || x.manual || db.prices[norm(x.name)]) return;
+    const s = src.fixed.find((y) => y.name === x.name && y.paid != null && !y.manual); if (s && s.paid > 0) x.amount = s.paid; }));
+  Object.entries(db.months).forEach(([ym, m]) => applyPrices(m, ym));
 }
 /* The plan of a new month, copied from the month before it (src) without saving anything. */
 function planFrom(src, before) {
@@ -616,9 +640,87 @@ function viewStats() {
   html += `<h2>Por mes</h2><div class="card">${chart(rows.slice(-12))}
     <div class="legend"><span><i style="background:var(--sun)"></i>Fijos</span><span><i style="background:var(--plum)"></i>Variables + deudas</span><span><i style="background:var(--red)"></i>Únicos + anotados</span><span><i style="background:var(--accent)"></i>Ahorro</span><span><i style="background:var(--line)"></i>Sobró</span></div></div>`;
   html += forecastHtml();
+  html += subsHtml();
   html += `<h2>Tabla</h2><div class="card">`;
   rows.slice().reverse().forEach((r) => (html += `<div class="line" data-act="goMonth" data-ym="${r.ym}"><span class="name">${ymLabel(r.ym)}</span><span class="small muted num">gastos ${eur(r.outflow, false)}</span><b class="num" style="width:90px;text-align:right;color:${r.left < 0 ? "var(--red)" : "inherit"}">${eur(r.left, false)}</b></div>`));
   app.innerHTML = html + `</div>`;
+}
+/* Subscriptions: payments from the bank that come back (nearly) every month for (nearly) the same amount */
+function subscriptions() {
+  const txs = Object.values(db.tx).filter((t) => t.amount < 0); if (!txs.length) return [];
+  const lastDate = txs.map((t) => t.date).sort().pop(), since = ymShift(lastDate.slice(0, 7), -6);
+  const groups = {};
+  txs.forEach((t) => { const to = classify(t);
+    if (!["cat", "fixed", "variable"].includes(to.kind) || db.oneoff[t.id]) return;
+    const name = to.kind === "cat" ? displayName(t) : to.name, key = norm(name); if (!key) return;
+    (groups[key] = groups[key] || { key, name, list: [] }).list.push(t); });
+  const out = [];
+  Object.values(groups).forEach((g) => {
+    const recent = g.list.filter((t) => t.date.slice(0, 7) >= since).sort((a, b) => a.date.localeCompare(b.date));
+    const months = new Set(recent.map((t) => t.date.slice(0, 7)));
+    if (months.size < 3 || recent.length > months.size * 1.5) return;          // at least 3 months, about once a month
+    const amts = recent.slice(-3).map((t) => -t.amount);
+    if (Math.max(...amts) > Math.min(...amts) * 1.35) return;                    // same price (a price change still fits)
+    const last = recent.at(-1), prev = recent.at(-2);
+    if ((new Date(lastDate) - new Date(last.date)) / 864e5 > 45) return;           // stopped: not charged lately
+    const now = -last.amount, before = -prev.amount;
+    if (now > 250) return;                                                         // rent and the like are not subscriptions
+    out.push({ key: g.key, name: g.name, amount: now, year: round2(now * 12), change: Math.abs(now - before) >= 0.5 ? round2(now - before) : 0, cat: classify(last).cat || classify(last).name || "" });
+  });
+  // manual ones (a price set by hand for something the bank does not show yet, e.g. a new subscription)
+  const nx = ymShift(ymNow(), 1);
+  Object.entries(db.prices).forEach(([key, p]) => { if (!out.some((x) => x.key === key)) { const pr = priceFor(key, nx) || priceFor(key, p.list[0].from); if (pr) out.push({ key, name: p.name, amount: pr.amount, year: round2(pr.amount * 12), change: 0 }); } });
+  out.forEach((x) => { const p = db.prices[x.key]; if (!p) return; const e = p.list[0];
+    x.plan = e.to ? `${eur(e.amount)} ${e.from > ymNow() ? "desde " + ymLabel(e.from, true).toLowerCase() + " " : ""}hasta ${ymLabel(e.to, true).toLowerCase()}, luego ${eur(e.normal)}`
+                  : `${eur(e.amount)} desde ${ymLabel(e.from, true).toLowerCase()}`; });
+  return out.sort((a, b) => b.amount - a.amount);
+}
+function subDialog(key) {
+  const x = key ? subscriptions().find((y) => y.key === key) : null, e = key && db.prices[key] ? db.prices[key].list[0] : null;
+  const nx = ymShift(ymNow(), 1), money = (v) => (v != null && v !== "" ? String(v).replace(".", ",") : "");
+  openDialog(`<form><h3>${x ? esc(x.name) : "Nueva suscripción"}</h3>
+    <div class="field"><label>Nombre</label><input name="name" value="${esc(db.prices[key]?.name || x?.name || "")}" required placeholder="Udemy, Disney+…"></div>
+    <div class="row"><div class="field grow"><label>Nuevo precio €</label><input name="amount" inputmode="decimal" value="${money(e ? e.amount : "")}" required></div>
+      <div class="field grow"><label>Desde</label><input name="from" type="month" value="${e?.from || nx}" required></div></div>
+    <label class="small"><input type="checkbox" name="temp" ${e?.to ? "checked" : ""} style="width:auto"> Solo por un tiempo</label>
+    <div class="row" id="tempf" ${e?.to ? "" : "hidden"} style="margin-top:8px"><div class="field grow"><label>Hasta (incluido)</label><input name="to" type="month" value="${e?.to || ymShift(nx, 1)}"></div>
+      <div class="field grow"><label>Después vuelve a €</label><input name="normal" inputmode="decimal" value="${money(e?.normal ?? x?.amount ?? "")}"></div></div>
+    <p class="small muted">Se guarda en tus gastos fijos de esos meses. Lo que el banco cobre de verdad siempre manda.</p>
+    ${x || e ? `<div class="row" style="gap:8px;margin-top:10px">${x ? `<button type="button" class="ghost" data-hide style="color:var(--red)">Quitar de la lista</button>` : ""}${e ? `<button type="button" class="ghost" data-clear>Borrar cambio de precio</button>` : ""}</div>` : ""}
+    <div class="actions"><span class="grow"></span><button type="button" data-close>Cancelar</button><button class="primary">Guardar</button></div></form>`,
+  (d) => {
+    const f = d.querySelector("form");
+    f.temp.onchange = () => (d.querySelector("#tempf").hidden = !f.temp.checked);
+    d.querySelector("[data-close]").onclick = () => d.close();
+    const hide = d.querySelector("[data-hide]"); if (hide) hide.onclick = () => { db.subHide = [...(db.subHide || []), key]; save(); d.close(); render(); };
+    const clear = d.querySelector("[data-clear]"); if (clear) clear.onclick = () => { delete db.prices[key]; save(); d.close(); render(); toast("Cambio de precio borrado"); };
+    f.onsubmit = (ev) => { ev.preventDefault();
+      const name = f.name.value.trim(), k = norm(name), amount = num(f.amount.value); if (!k || !(amount >= 0)) return;
+      const entry = { from: f.from.value, amount, ...(f.temp.checked ? { to: f.to.value, normal: num(f.normal.value) } : {}) };
+      if (entry.to && entry.to < entry.from) { toast("“Hasta” va después de “Desde”"); return; }
+      if (key && key !== k) delete db.prices[key];
+      db.prices[k] = { name, list: [entry] };
+      // something the bank books as a normal expense: from now on book it as this fixed line, so it is planned and not counted twice
+      const txs = Object.values(db.tx).filter((t) => t.amount < 0 && (norm(displayName(t)) === key || norm(displayName(t)) === k));
+      if (txs.length && txs.some((t) => classify(t).kind === "cat")) {
+        db.rules.unshift({ id: Math.random().toString(36).slice(2, 10), match: key || k, to: { kind: "fixed", name } }); applyBank();
+      } else { Object.entries(db.months).forEach(([ym, m]) => applyPrices(m, ym)); save(); }
+      d.close(); render(); toast(`${name}: ${eur(amount)} desde ${ymLabel(entry.from, true).toLowerCase()}`); };
+  });
+}
+function subsHtml() {
+  const all = subscriptions(); if (!all.length) return `<h2>Suscripciones <button class="ghost" data-act="addSub">+ Añadir</button></h2><div class="card empty">Aparecen solas cuando importas extractos.</div>`;
+  const hidden = db.subHide || [], list = all.filter((x) => !hidden.includes(x.key));
+  const month = sum(list, (x) => x.amount);
+  let html = `<h2>Suscripciones y pagos que se repiten <button class="ghost" data-act="addSub">+ Añadir</button></h2><div class="card">
+    <div class="row" style="margin-bottom:8px"><div class="grow"><div class="small muted">Al mes</div><b class="num" style="font-size:20px">${eur(month)}</b></div>
+    <div class="grow"><div class="small muted">Al año</div><b class="num" style="font-size:20px">${eur(month * 12)}</b></div></div>`;
+  list.forEach((x) => (html += `<div class="line" data-act="editSub" data-key="${esc(x.key)}"><span class="name">${esc(x.name)}${x.plan ? `<small class="muted" style="display:block;font-size:11px">${esc(x.plan)}</small>` : ""}</span>${
+    x.change > 0 ? `<span class="tag" style="background:#f8e1dc;color:var(--red)">subió ${eur(x.change)}</span>` : x.change < 0 ? `<span class="tag" style="background:#dcefe4;color:var(--accent)">bajó ${eur(-x.change)}</span>` : ""
+  }<span class="num">${eur(x.amount)}<small class="muted" style="display:block;font-size:11px">${eur(x.year, false)}/año</small></span></div>`));
+  html += `<div class="small muted" style="margin-top:8px">Sacadas de tus extractos: pagos de casi el mismo monto (hasta 250 €) en al menos 3 de los últimos 6 meses. Toca una para cambiar su precio (también por unos meses) o quitarla.${
+    hidden.length ? ` <a href="#" data-act="subUnhide">Mostrar ${hidden.length} oculta${hidden.length > 1 ? "s" : ""}</a>` : ""}</div></div>`;
+  return html;
 }
 function forecastHtml() {
   const { h, out } = forecast(6);
@@ -1083,6 +1185,7 @@ function applyBank() {
   // closed months: drop bank lines the bank never charged (e.g. Radio Tax is quarterly)
   Object.entries(db.months).forEach(([ym, m]) => { if (!isClosed(ym)) return;
     ["income", "fixed", "variable", "savings"].forEach((s) => (m[s] = m[s].filter((x) => x.salary || !(x.auto && x.paid == null)))); });
+  carryPrices();
   save();
 }
 async function importCsv(files) {
@@ -1182,6 +1285,9 @@ document.addEventListener("click", (e) => {
   if (t.closest("#tabs")) { state.tab = t.dataset.tab; state.spendFilter = ""; state.stash = ""; saveUi(); render(); scrollTo(0, 0); return; }
   const a = t.dataset.act;
   switch (a) {
+    case "editSub": subDialog(t.dataset.key); break;
+    case "addSub": subDialog(); break;
+    case "subUnhide": e.preventDefault(); db.subHide = []; save(); render(); break;
     case "goYm": state.ym = t.dataset.ym; state.spendFilter = ""; render(); break;
     case "prev": state.ym = ymShift(state.ym, -1); state.spendFilter = ""; render(); break;
     case "next": state.ym = ymShift(state.ym, 1); state.spendFilter = ""; render(); break;
