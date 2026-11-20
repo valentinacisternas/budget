@@ -55,6 +55,12 @@
 
   .monthbar { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
   .monthbar h1 { flex: 1; text-align: center; margin: 0; font-size: 22px; }
+  .mstrip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 10px; padding: 2px 16px 4px; scroll-snap-type: x proximity; }
+  .mstrip::-webkit-scrollbar { display: none; }
+  .mstrip button { flex: none; scroll-snap-align: center; padding: 7px 13px; border-radius: 99px; background: var(--card); color: var(--ink-2); font-size: 14px; line-height: 1.15; text-align: center; }
+  .mstrip button small { display: block; font-size: 10px; opacity: .6; }
+  .mstrip button.now { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .mstrip button.on { background: var(--accent); color: #fff; box-shadow: none; }
   .hero { background: var(--accent); color: #fff; border-radius: 20px; padding: 18px; box-shadow: var(--shadow); }
   .hero.neg { background: var(--red); }
   .hero .big { font-size: 38px; font-weight: 700; letter-spacing: -.02em; }
@@ -81,6 +87,9 @@
 
   .fab { position: fixed; right: 18px; bottom: calc(84px + env(safe-area-inset-bottom)); width: 56px; height: 56px; border-radius: 50%;
     background: var(--accent); color: #fff; font-size: 30px; line-height: 56px; padding: 0; box-shadow: 0 6px 20px #0003; z-index: 11; }
+  .back { position: fixed; left: 18px; bottom: calc(92px + env(safe-area-inset-bottom)); height: 40px; padding: 0 16px 0 12px; border-radius: 99px;
+    background: var(--card); color: var(--ink); font-size: 15px; box-shadow: 0 4px 14px #0002; z-index: 11; display: flex; align-items: center; gap: 4px; }
+  .back[hidden] { display: none; }
 
   dialog { border: 0; border-radius: 20px; padding: 18px; background: var(--card); color: var(--ink); width: min(440px, calc(100vw - 32px)); box-shadow: 0 20px 60px #0005; }
   dialog::backdrop { background: #0006; }
@@ -162,6 +171,7 @@
 <main id="app"></main>
 
 <button class="fab" id="fab" aria-label="Anotar gasto">+</button>
+<button class="back" id="back" hidden aria-label="Volver"><span style="font-size:22px;line-height:1">‹</span> Atrás</button>
 
 <nav class="tabs" id="tabs">
   <button data-tab="month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Mes</button>
@@ -179,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.12"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.14"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -349,7 +359,15 @@ function render() {
 }
 
 function monthBar() {
-  return `<div class="monthbar"><button class="icon" data-act="prev" aria-label="Mes anterior">‹</button><h1>${ymLabel(state.ym)}</h1><button class="icon" data-act="next" aria-label="Mes siguiente">›</button></div>`;
+  // a row of month pills (swipe it sideways); the page itself can also be swiped left/right to change month
+  const keys = Object.keys(db.months).sort(), now = ymNow();
+  const from = [keys[0] || now, ymShift(now, -6), ymShift(state.ym, -2)].sort()[0], to = [keys.at(-1) || now, ymShift(now, 6), ymShift(state.ym, 2)].sort().at(-1);
+  let pills = "";
+  for (let k = from; k <= to; k = ymShift(k, 1)) { const [y, m] = k.split("-");
+    const name = new Date(+y, +m - 1, 1).toLocaleDateString("es", { month: "short" }).replace(".", "");
+    pills += `<button data-act="goYm" data-ym="${k}" class="${k === state.ym ? "on" : ""} ${k === now ? "now" : ""}">${name.charAt(0).toUpperCase() + name.slice(1)}<small>${y}</small></button>`; }
+  setTimeout(() => { const on = document.querySelector(".mstrip .on"); if (on) on.parentElement.scrollLeft = on.offsetLeft - on.parentElement.clientWidth / 2 + on.offsetWidth / 2; });
+  return `<div class="monthbar"><h1>${ymLabel(state.ym)}</h1></div><div class="mstrip">${pills}</div>`;
 }
 
 /* Payday: the salary paid at month end starts the next budget month. */
@@ -1164,6 +1182,7 @@ document.addEventListener("click", (e) => {
   if (t.closest("#tabs")) { state.tab = t.dataset.tab; state.spendFilter = ""; state.stash = ""; saveUi(); render(); scrollTo(0, 0); return; }
   const a = t.dataset.act;
   switch (a) {
+    case "goYm": state.ym = t.dataset.ym; state.spendFilter = ""; render(); break;
     case "prev": state.ym = ymShift(state.ym, -1); state.spendFilter = ""; render(); break;
     case "next": state.ym = ymShift(state.ym, 1); state.spendFilter = ""; render(); break;
     case "newFrom": createMonth(state.ym, t.dataset.from); render(); toast("Mes creado"); break;
@@ -1210,6 +1229,21 @@ document.addEventListener("click", (e) => {
     case "wipe": if (confirm("¿Borrar TODO? Exporta una copia antes si la quieres.") && confirm("¿Seguro?")) { localStorage.removeItem(KEY); db = load(); save(); render(); } break;
   }
 });
+/* "Atrás": remembers where you were (tab, month, filter, bolsillo, scroll) before each move */
+const NAV = ["tab", "ym", "spendFilter", "stash", "metaSeg"];
+const navSnap = () => ({ ...Object.fromEntries(NAV.map((k) => [k, state[k] || ""])), y: scrollY });
+const navKey = (x) => NAV.map((k) => x[k] || "").join("|");
+let navStack = [], navPre = null;
+const navShow = () => ($("#back").hidden = !navStack.length);
+document.addEventListener("click", (e) => { navPre = dlg.contains(e.target) || e.target.closest("#back") ? null : navSnap(); }, true);
+document.addEventListener("click", () => { if (navPre && navKey(navPre) !== navKey(navSnap())) { navStack.push(navPre); if (navStack.length > 40) navStack.shift(); } navPre = null; navShow(); });
+$("#back").onclick = () => { const p = navStack.pop(); if (!p) return; NAV.forEach((k) => (state[k] = p[k])); saveUi(); render(); scrollTo(0, p.y); navShow(); };
+// swipe the page left/right on Mes and Gastos to change month
+let swX = null, swY = 0;
+document.addEventListener("touchstart", (e) => { const t = e.touches[0]; swX = (state.tab === "month" || state.tab === "spend") && !e.target.closest(".mstrip, dialog, input, canvas, svg") && e.touches.length === 1 ? t.clientX : null; swY = t.clientY; }, { passive: true });
+document.addEventListener("touchend", (e) => { if (swX == null) return; const t = e.changedTouches[0], dx = t.clientX - swX, dy = t.clientY - swY; swX = null;
+  if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+  navStack.push(navSnap()); state.ym = ymShift(state.ym, dx < 0 ? 1 : -1); state.spendFilter = ""; render(); navShow(); }, { passive: true });
 $("#fab").onclick = () => expenseDialog(null, state.tab === "spend" ? state.stash : null);
 $("#fileCsv").onchange = (e) => { const fs = [...e.target.files]; e.target.value = ""; if (fs.length) importCsv(fs); };
 $("#fileJson").onchange = async (e) => { const f = e.target.files[0]; e.target.value = ""; if (!f) return;
