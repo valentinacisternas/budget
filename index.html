@@ -189,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.18"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.19"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -227,6 +227,13 @@ function load() {
   d.limits = d.limits || {};
   d.goals = d.goals || [];
   d.prices = d.prices || {};
+  // N26 instalments used to be a variable line: now they are a debt (repayments) plus a refund of the split purchase
+  const i26 = (d.rules || []).findIndex((r) => norm(r.match) === "n26aplazos" && r.to && r.to.kind === "variable");
+  if (i26 >= 0) {
+    d.rules.splice(i26, 1, { id: "n26ap1", match: "n26aplazos", to: { kind: "debt", name: "N26 a plazos", shift: true }, sign: "-" }, { id: "n26ap2", match: "n26aplazos", to: { kind: "cat", cat: "Compras" }, sign: "+" });
+    Object.values(d.months || {}).forEach((m) => (m.variable = m.variable.filter((x) => norm(x.name) !== "n26aplazos")));
+    d.reapply = true;
+  }
   (d.rules || []).forEach((r) => { if (norm(r.match) === "klarna" && r.to && r.to.kind === "debt") r.to.shift = true; });
   return d;
 }
@@ -1057,7 +1064,8 @@ function defaultRules() {
     R("finanzamt", { kind: "income", name: "Devolución impuestos" }, "+"),
     R("ahorro", { kind: "savings", name: "N26 Ahorro" }),
     // moves between my own accounts come before Klarna/shop words that may appear in a transfer note
-    R("n26aplazos", { kind: "variable", name: "N26 a plazos" }),
+    R("n26aplazos", { kind: "debt", name: "N26 a plazos", shift: true }, "-"), // N26 instalments: a debt with its own plan
+    R("n26aplazos", { kind: "cat", cat: "Compras" }, "+"),                     // splitting a purchase gives its amount back
     R("n26", { kind: "transfer" }),
     R("kreditanstalt", { kind: "debt", name: "KFW" }),
     R("dbvertrieb", { kind: "fixed", name: "DB Transport" }, "-"),
@@ -1369,6 +1377,7 @@ async function checkUpdate(manual) {
     state.newVersion = v; render(); toast("Hay una versión nueva: Más → Actualizar app");
   } catch (e) { if (manual) toast("Sin conexión: no pude revisar"); }
 }
+if (db.reapply) { delete db.reapply; applyBank(); }
 render();
 checkUpdate(false);
 </script>
