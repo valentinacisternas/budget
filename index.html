@@ -176,10 +176,11 @@ function createMonth(ym, fromYm) {
   const m = blankMonth(); const src = fromYm && db.months[fromYm];
   if (src) {
     // the plan for the new month follows what was really paid last month
-    // bank lines are only carried over when they repeat (paid last month and the month before)
+    // A line the bank charged is carried over only when it repeats (charged the month before too), so one-off
+    // payments don't become a plan. A line not charged (yet) is already a plan line: always carry it, so
+    // copying into future months keeps rent and bills.
     const before = db.months[ymShift(fromYm, -1)];
-    // (in a month that is still open, a line not charged yet also counts if it was charged the month before)
-    const repeats = (x, sec) => !x.auto || ((x.paid != null || !isClosed(fromYm)) && !!before && before[sec].some((y) => y.name === x.name && y.paid != null));
+    const repeats = (x, sec) => !x.auto || x.paid == null || (!!before && before[sec].some((y) => y.name === x.name && y.paid != null));
     // savings: a month with withdrawals must not plan negative savings; keep the usual deposit instead
     const next = (x, sec) => sec !== "savings" ? (x.paid != null ? x.paid : x.amount) : Math.max(0, x.paid > 0 ? x.paid : x.amount);
     const copy = (list, sec) => list.filter((x) => x.salary || repeats(x, sec)).map((x) => { const { paid, manual, ...rest } = x; return { ...rest, amount: next(x, sec), id: uid() }; });
