@@ -178,7 +178,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.9"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.10"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -209,7 +209,7 @@ function load() {
   let d = null;
   try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   if (!d || !d.months) d = { months: {}, debts: [], cats: DEFAULT_CATS.slice() };
-  d.tx = d.tx || {}; d.overrides = d.overrides || {}; d.rules = d.rules || defaultRules();
+  d.tx = d.tx || {}; d.overrides = d.overrides || {}; d.oneoff = d.oneoff || {}; d.rules = d.rules || defaultRules();
   // base salary by month it applies to (the salary paid at the end of November is the December budget)
   d.salary = d.salary || [];
   d.wish = d.wish || [];
@@ -265,15 +265,17 @@ function spendHistory() {
   const n26 = new Set(Object.values(db.tx).filter((t) => t.acct === "n26").map((t) => t.date.slice(0, 7)));
   const yms = Object.keys(db.months).filter((ym) => isClosed(ym) && db.months[ym].expenses.some((e) => e.src === "bank") && (!n26.size || n26.has(ym))).sort().slice(-6);
   if (!yms.length) return null;
-  const totalsBy = yms.map((ym) => sum(db.months[ym].expenses));
+  const normal = (ym) => db.months[ym].expenses.filter((e) => !e.oneoff); // one-off (a flight, a big purchase) never counts
+  const totalsBy = yms.map((ym) => sum(normal(ym)));
   const sorted = totalsBy.slice().sort((a, b) => a - b), mid = Math.floor(sorted.length / 2);
   const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   const avg = sum(totalsBy, (x) => x) / yms.length;
-  const cats = {}; yms.forEach((ym) => db.months[ym].expenses.forEach((e) => (cats[e.cat || "Otros"] = (cats[e.cat || "Otros"] || 0) + e.amount / yms.length)));
+  const cats = {}; yms.forEach((ym) => normal(ym).forEach((e) => (cats[e.cat || "Otros"] = (cats[e.cat || "Otros"] || 0) + e.amount / yms.length)));
   const scale = avg > 0 ? median / avg : 1;
   const byCat = Object.entries(cats).map(([c, v]) => [c, v * scale]).filter(([, v]) => v > 1).sort((a, b) => b[1] - a[1]);
   const last3 = totalsBy.slice(-3), trend = last3.length ? sum(last3, (x) => x) / last3.length : median;
-  return { months: yms, median, byCat, trend, min: sorted[0], max: sorted[sorted.length - 1] };
+  const oneoffs = yms.flatMap((ym) => db.months[ym].expenses.filter((e) => e.oneoff));
+  return { oneoffs, months: yms, median, byCat, trend, min: sorted[0], max: sorted[sorted.length - 1] };
 }
 function forecast(n) {
   const h = spendHistory(), out = []; if (!h) return { h, out };
@@ -445,7 +447,7 @@ function stashNumbers(m, cat, ym) {
   return { spent, limit, left, days, perDay: limit && left > 0 && days ? left / days : 0 };
 }
 function expRow(e) {
-  return `<div class="line" data-act="editExp" data-id="${e.id}"><span class="small muted num" style="width:44px">${e.date ? e.date.slice(8, 10) + "." + e.date.slice(5, 7) : ""}</span><span class="name">${esc(e.note || e.cat)}${e.note && !state.stash ? ` <span class="tag">${esc(e.cat)}</span>` : ""}${e.src === "bank" ? ` <span class="tag">${e.acct === "n26" ? "N26" : "CB"}</span>` : ""}</span><span class="num">${eur(e.amount)}</span></div>`;
+  return `<div class="line" data-act="editExp" data-id="${e.id}"><span class="small muted num" style="width:44px">${e.date ? e.date.slice(8, 10) + "." + e.date.slice(5, 7) : ""}</span><span class="name">${esc(e.note || e.cat)}${e.note && !state.stash ? ` <span class="tag">${esc(e.cat)}</span>` : ""}${e.oneoff ? ` <span class="tag" style="background:var(--sun-soft);color:var(--sun)">único</span>` : ""}${e.src === "bank" ? ` <span class="tag">${e.acct === "n26" ? "N26" : "CB"}</span>` : ""}</span><span class="num">${eur(e.amount)}</span></div>`;
 }
 function viewSpend() {
   const m = getMonth(state.ym);
@@ -601,7 +603,7 @@ function forecastHtml() {
   let html = `<h2>Próximos meses</h2>
     <div class="card"><div class="small muted">Gasto variable esperado por mes</div>
       <div class="num" style="font-size:30px;font-weight:800;letter-spacing:-.02em">~${eur(h.median, false)}</div>
-      <div class="small muted">según tus últimos ${h.months.length} meses (entre ${eur(h.min, false)} y ${eur(h.max, false)}) · ${trendTxt}</div>
+      <div class="small muted">${h.oneoffs.length ? `sin contar ${h.oneoffs.length} ${h.oneoffs.length === 1 ? "gasto único" : "gastos únicos"} (${eur(sum(h.oneoffs), false)}) · ` : ""}según tus últimos ${h.months.length} meses (entre ${eur(h.min, false)} y ${eur(h.max, false)}) · ${trendTxt}</div>
       <div style="margin-top:10px">${h.byCat.slice(0, 7).map(([c, v]) => { const lim = (db.limits || {})[c];
         return `<div class="row small" style="padding:3px 0"><span style="width:22px">${catIcon(c)}</span><span class="grow sname" style="font-size:13px">${esc(c)}</span>${lim ? `<span class="chip ${v > lim ? "" : "ok"}" style="margin-right:6px">${v > lim ? "sobre" : "dentro de"} tu límite ${eur(lim, false)}</span>` : ""}<span class="num">~${eur(v, false)}</span></div>`; }).join("")}
         ${h.byCat.length > 7 ? `<div class="small muted">y ${h.byCat.length - 7} categorías más (~${eur(sum(h.byCat.slice(7), ([, v]) => v), false)})</div>` : ""}</div></div>
@@ -867,6 +869,7 @@ function expenseDialog(id, presetCat) {
     <div class="field"><label>Categoría</label><div class="chips" id="catChips">${db.cats.map((c) => `<button type="button" data-cat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}<button type="button" data-new style="border:1.5px dashed var(--line);background:transparent">+ Nueva</button></div></div>
     <div class="field"><label>Nota (opcional)</label><input name="note" value="${esc(e?.note || "")}" placeholder="Rewe, cena con amigas…"></div>
     <div class="field"><label>Fecha</label><input name="date" type="date" value="${defDate}"></div>
+    <div class="field"><label><input type="checkbox" name="oneoff" ${e?.oneoff ? "checked" : ""} style="width:auto;vertical-align:-2px"> <b>Gasto único</b>: no cuenta en el pronóstico</label></div>
     <div class="actions">${e ? `<button type="button" class="danger" data-del>Borrar</button><span class="grow"></span>` : ""}<button type="button" data-close>Cancelar</button><button class="primary">Guardar</button></div></form>`,
   (d) => {
     const f = d.querySelector("form");
@@ -875,7 +878,7 @@ function expenseDialog(id, presetCat) {
       cat = b.dataset.cat; d.querySelectorAll("#catChips button").forEach((x) => x.classList.toggle("on", x === b)); };
     f.onsubmit = (ev) => { ev.preventDefault(); const amount = num(f.amount.value); if (!amount) return;
       const date = f.date.value || defDate; const targetYm = date.slice(0, 7);
-      const rec = { amount, cat, note: f.note.value.trim(), date };
+      const rec = { amount, cat, note: f.note.value.trim(), date, ...(f.oneoff.checked ? { oneoff: true } : {}) };
       if (e) { m.expenses = m.expenses.filter((x) => x !== e); }
       let tm = getMonth(targetYm) || createMonth(targetYm, latestBefore(targetYm));
       tm.expenses.push({ id: e?.id || uid(), ...rec });
@@ -1034,7 +1037,7 @@ function applyBank() {
       if (kind === "ignore") return;
       if (kind === "cat") {
         if (!db.cats.includes(to.cat)) db.cats.splice(Math.max(0, db.cats.length - 1), 0, to.cat);
-        m.expenses.push({ id: t.id, src: "bank", txid: t.id, amount: -t.amount, cat: to.cat, note: displayName(t), date: t.date, acct: t.acct }); return;
+        m.expenses.push({ id: t.id, src: "bank", txid: t.id, amount: -t.amount, cat: to.cat, note: displayName(t), date: t.date, acct: t.acct, ...(db.oneoff[t.id] ? { oneoff: true } : {}) }); return;
       }
       if (kind === "debt") {
         let d = db.debts.find((x) => norm(x.name) === norm(to.name));
@@ -1118,6 +1121,7 @@ function txDialog(txid) {
     <div class="field"><label>Qué es</label><select name="kind">${KINDS.map(([k, l]) => `<option value="${k}" ${k === curKind ? "selected" : ""}>${l}</option>`).join("")}</select></div>
     <div class="field" data-for="cat"><label>Categoría</label><div class="chips" id="catChips">${db.cats.map((c) => `<button type="button" data-cat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}<button type="button" data-new style="border:1.5px dashed var(--line);background:transparent">+ Nueva</button></div></div>
     <div class="field" data-for="name"><label>Nombre de la línea</label><input name="name" list="names" value="${esc(cur.name || displayName(t))}"><datalist id="names">${allNames().map((n) => `<option value="${esc(n)}">`).join("")}</datalist></div>
+    <div class="field" data-for="cat"><label><input type="checkbox" name="oneoff" ${db.oneoff[t.id] ? "checked" : ""} style="width:auto;vertical-align:-2px"> <b>Gasto único</b> (un viaje, una compra grande): no cuenta en el pronóstico</label></div>
     <div class="field"><label><input type="checkbox" name="always" checked style="width:auto;vertical-align:-2px"> Hacer lo mismo con todo lo que contenga:</label><input name="match" value="${esc(displayName(t))}"></div>
     <div class="actions"><button type="button" data-close>Cancelar</button><button class="primary">Guardar</button></div></form>`,
   (d) => {
@@ -1133,9 +1137,15 @@ function txDialog(txid) {
       if (k !== "cat" && k !== "ignore" && !name) return;
       const to = k === "cat" ? { kind: k, cat } : k === "ignore" ? { kind: k } : { kind: k, name };
       const match = f.match.value.trim();
-      if (f.always.checked && norm(match)) { delete db.overrides[t.id]; db.rules.unshift({ id: uid(), match, to, sign: t.amount > 0 ? "+" : "-" }); }
-      else db.overrides[t.id] = to;
-      applyBank(); d.close(); render(); toast(f.always.checked ? "Regla guardada" : "Guardado");
+      if (f.oneoff.checked && k === "cat") db.oneoff[t.id] = 1; else delete db.oneoff[t.id];
+      // only marking it as one-off: keep how it is sorted, don't create a rule
+      const same = JSON.stringify(to) === JSON.stringify(cur.kind === "transfer" ? { kind: "ignore" } : cur.kind === "cat" ? { kind: "cat", cat: cur.cat } : { kind: cur.kind, name: cur.name });
+      let msg = "Guardado";
+      if (!same) {
+        if (f.always.checked && norm(match)) { delete db.overrides[t.id]; db.rules.unshift({ id: uid(), match, to, sign: t.amount > 0 ? "+" : "-" }); msg = "Regla guardada"; }
+        else db.overrides[t.id] = to;
+      }
+      applyBank(); d.close(); render(); toast(msg);
     };
   });
 }
