@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -31,6 +31,7 @@
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  html, body, button, input, select, textarea, a, label { touch-action: manipulation; } /* no double-tap zoom */
   body { font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
     padding: env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom)); }
   main { max-width: 640px; margin: 0 auto; padding: 12px 16px 24px; }
@@ -178,7 +179,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.11"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.12"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
