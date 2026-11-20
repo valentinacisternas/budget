@@ -142,6 +142,8 @@
   .ms i.on { border-color: var(--ink); }
   .pill.wide { width: 100%; padding: 14px; font-size: 16px; margin-top: 12px; }
   .addchip { font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 99px; background: var(--red-soft); color: var(--red); flex: none; }
+  .fc { padding: 10px 0; border-top: 1px solid var(--line); }
+  .fc:first-child { border-top: 0; padding-top: 0; }
   .stashes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .stash { background: var(--card); border-radius: 18px; padding: 12px; box-shadow: var(--shadow); min-width: 0; }
   .sicon { width: 34px; height: 34px; border-radius: 10px; background: var(--card-2); display: grid; place-items: center; font-size: 18px; flex: none; }
@@ -176,7 +178,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.7"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.8"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -232,13 +234,20 @@ function ensureSalary(m) {
 const getMonth = (ym) => db.months[ym];
 function latestBefore(ym) { return Object.keys(db.months).filter((k) => k < ym).sort().pop(); }
 function createMonth(ym, fromYm) {
-  const m = blankMonth(); const src = fromYm && db.months[fromYm];
+  const m = planFrom(fromYm && db.months[fromYm], fromYm && db.months[ymShift(fromYm, -1)]);
+  db.months[ym] = m; ensureSalary(m);
+  // continuing debts: carry this month's planned payment from the previous one
+  db.debts.forEach((d) => { if (!d.closed && !d.plan && fromYm && d.payments[fromYm] != null && d.payments[ym] == null && (!d.total || debtLeft(d, ym) > 0)) d.payments[ym] = d.monthly || d.payments[fromYm]; });
+  save(); return m;
+}
+/* The plan of a new month, copied from the month before it (src) without saving anything. */
+function planFrom(src, before) {
+  const m = blankMonth();
   if (src) {
     // the plan for the new month follows what was really paid last month
     // A line the bank charged is carried over only when it repeats (charged the month before too), so one-off
     // payments don't become a plan. A line not charged (yet) is already a plan line: always carry it, so
     // copying into future months keeps rent and bills.
-    const before = db.months[ymShift(fromYm, -1)];
     const repeats = (x, sec) => !x.auto || x.paid == null || (!!before && before[sec].some((y) => y.name === x.name && y.paid != null));
     // savings: a month with withdrawals must not plan negative savings; keep the usual deposit instead
     const next = (x, sec) => sec !== "savings" ? (x.paid != null ? x.paid : x.amount) : Math.max(0, x.paid > 0 ? x.paid : x.amount);
@@ -246,11 +255,42 @@ function createMonth(ym, fromYm) {
     m.income = copy(src.income, "income"); m.fixed = copy(src.fixed, "fixed"); m.variable = copy(src.variable, "variable"); m.savings = copy(src.savings, "savings");
     m.spendBudget = src.spendBudget || 0;
   }
-  db.months[ym] = m; ensureSalary(m);
-  // continuing debts: carry this month's planned payment from the previous one
-  db.debts.forEach((d) => { if (!d.closed && !d.plan && fromYm && d.payments[fromYm] != null && d.payments[ym] == null && (!d.total || debtLeft(d, ym) > 0)) d.payments[ym] = d.monthly || d.payments[fromYm]; });
-  save(); return m;
+  return m;
 }
+/* ---------- forecast ---------- */
+/* Day-to-day spending you can expect in a month: the median of the last 6 finished months with bank data
+   (so one trip or a big purchase does not inflate it), split by category in the usual proportions. */
+function spendHistory() {
+  // months without the N26 statement only have one lump "sent to N26" (which also paid Klarna): leave them out
+  const n26 = new Set(Object.values(db.tx).filter((t) => t.acct === "n26").map((t) => t.date.slice(0, 7)));
+  const yms = Object.keys(db.months).filter((ym) => isClosed(ym) && db.months[ym].expenses.some((e) => e.src === "bank") && (!n26.size || n26.has(ym))).sort().slice(-6);
+  if (!yms.length) return null;
+  const totalsBy = yms.map((ym) => sum(db.months[ym].expenses));
+  const sorted = totalsBy.slice().sort((a, b) => a - b), mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  const avg = sum(totalsBy, (x) => x) / yms.length;
+  const cats = {}; yms.forEach((ym) => db.months[ym].expenses.forEach((e) => (cats[e.cat || "Otros"] = (cats[e.cat || "Otros"] || 0) + e.amount / yms.length)));
+  const scale = avg > 0 ? median / avg : 1;
+  const byCat = Object.entries(cats).map(([c, v]) => [c, v * scale]).filter(([, v]) => v > 1).sort((a, b) => b[1] - a[1]);
+  const last3 = totalsBy.slice(-3), trend = last3.length ? sum(last3, (x) => x) / last3.length : median;
+  return { months: yms, median, byCat, trend, min: sorted[0], max: sorted[sorted.length - 1] };
+}
+function forecast(n) {
+  const h = spendHistory(), out = []; if (!h) return { h, out };
+  let prevPlan = db.months[ymNow()], before = db.months[ymShift(ymNow(), -1)];
+  for (let i = 1; i <= n; i++) {
+    const ym = ymShift(ymNow(), i), real = db.months[ym];
+    const m = real || planFrom(prevPlan, before); if (!real) ensureSalaryVirtual(m);
+    const s = (list, sec) => sum(list, (x) => eff(x, ym, sec));
+    const income = s(m.income, "income"), fixed = s(m.fixed, "fixed") + s(m.variable, "variable") + s(m.oneTime, "oneTime"), savings = s(m.savings, "savings");
+    const debt = sum(db.debts.filter((d) => !d.closed), (d) => (d.plan ? debtFor(d, ym) : d.payments[ym] != null ? Number(d.payments[ym]) : d.monthly || 0));
+    const logged = sum(m.expenses || []), spend = Math.max(h.median, logged);
+    out.push({ ym, income, fixed, debt, savings, spend, left: income - fixed - debt - savings - spend, real: !!real });
+    before = prevPlan; prevPlan = m;
+  }
+  return { h, out };
+}
+function ensureSalaryVirtual(m) { if (!m.income.some((x) => x.salary)) m.income.unshift({ id: "v", name: "Sueldo", amount: 0, salary: true, auto: true }); }
 /* A month is "closed" once the bank statement goes past it: auto lines that the bank never charged count as 0. */
 function lastBankYm() { let max = ""; for (const t of Object.values(db.tx)) if (t.date > max) max = t.date; return max.slice(0, 7); }
 function isClosed(ym) { const l = lastBankYm(); return !!l && ym < l; }
@@ -548,9 +588,30 @@ function viewStats() {
     <div class="small muted" style="margin-top:6px">Promedio por mes: ahorro ${eur(savedTotal / rows.length, false)}, sobró ${eur(leftTotal / rows.length, false)}</div></div>`;
   html += `<h2>Por mes</h2><div class="card">${chart(rows.slice(-12))}
     <div class="legend"><span><i style="background:var(--sun)"></i>Fijos</span><span><i style="background:var(--plum)"></i>Variables + deudas</span><span><i style="background:var(--red)"></i>Únicos + anotados</span><span><i style="background:var(--accent)"></i>Ahorro</span><span><i style="background:var(--line)"></i>Sobró</span></div></div>`;
+  html += forecastHtml();
   html += `<h2>Tabla</h2><div class="card">`;
   rows.slice().reverse().forEach((r) => (html += `<div class="line" data-act="goMonth" data-ym="${r.ym}"><span class="name">${ymLabel(r.ym)}</span><span class="small muted num">gastos ${eur(r.outflow, false)}</span><b class="num" style="width:90px;text-align:right;color:${r.left < 0 ? "var(--red)" : "inherit"}">${eur(r.left, false)}</b></div>`));
   app.innerHTML = html + `</div>`;
+}
+function forecastHtml() {
+  const { h, out } = forecast(6);
+  if (!h) return `<h2>Próximos meses</h2><div class="card muted small">Importa extractos del banco para ver un pronóstico.</div>`;
+  const maxLeft = Math.max(1, ...out.map((r) => Math.abs(r.left)));
+  const trendTxt = h.trend > h.median * 1.1 ? `↑ los últimos 3 meses vas más alto (${eur(h.trend, false)})` : h.trend < h.median * 0.9 ? `↓ los últimos 3 meses vas más bajo (${eur(h.trend, false)})` : "los últimos 3 meses van parecido";
+  let html = `<h2>Próximos meses</h2>
+    <div class="card"><div class="small muted">Gasto variable esperado por mes</div>
+      <div class="num" style="font-size:30px;font-weight:800;letter-spacing:-.02em">~${eur(h.median, false)}</div>
+      <div class="small muted">según tus últimos ${h.months.length} meses (entre ${eur(h.min, false)} y ${eur(h.max, false)}) · ${trendTxt}</div>
+      <div style="margin-top:10px">${h.byCat.slice(0, 7).map(([c, v]) => { const lim = (db.limits || {})[c];
+        return `<div class="row small" style="padding:3px 0"><span style="width:22px">${catIcon(c)}</span><span class="grow sname" style="font-size:13px">${esc(c)}</span>${lim ? `<span class="chip ${v > lim ? "" : "ok"}" style="margin-right:6px">${v > lim ? "sobre" : "dentro de"} tu límite ${eur(lim, false)}</span>` : ""}<span class="num">~${eur(v, false)}</span></div>`; }).join("")}
+        ${h.byCat.length > 7 ? `<div class="small muted">y ${h.byCat.length - 7} categorías más (~${eur(sum(h.byCat.slice(7), ([, v]) => v), false)})</div>` : ""}</div></div>
+    <div class="card">${out.map((r) => `<div class="fc" data-act="goMonth" data-ym="${r.ym}">
+      <div class="row"><b class="grow">${ymLabel(r.ym)}</b><b class="num" style="color:${r.left < 0 ? "var(--red)" : "var(--accent)"}">${r.left < 0 ? "faltan" : "te quedan"} ~${eur(Math.abs(r.left), false)}</b></div>
+      <div class="small muted">entra ${eur(r.income, false)} · fijos ${eur(r.fixed, false)} · deudas ${eur(r.debt, false)}${r.savings ? ` · ahorro ${eur(r.savings, false)}` : ""} · variables ~${eur(r.spend, false)}</div>
+      <div class="bar"><i style="width:${(Math.abs(r.left) / maxLeft) * 100}%;background:${r.left < 0 ? "var(--red)" : "var(--accent)"}"></i></div>
+    </div>`).join("")}
+    <div class="small muted" style="padding-top:8px">Sueldo base, fijos según el plan, Klarna y KfW según sus planes, y gastos variables como en tus meses normales.</div></div>`;
+  return html;
 }
 function chart(rows) {
   const W = 340, H = 180, pad = 22, bw = Math.min(30, (W - pad) / rows.length - 8);
