@@ -98,6 +98,60 @@
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(150px + env(safe-area-inset-bottom)); background: var(--ink); color: var(--bg);
     padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 50; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
+  /* Deseos: warm cards */
+  :root { --wish-bg: #f6efe6; --wish-card: #fffaf4; --wish-dark: #2e211c; --wish-accent: #d4664f; --coin: #f2c14e; --coin-edge: #c9952a;
+    --lid: #a8744f; --lid-2: #8a5c3c; --glass: #3d4f7a; --glass-edge: #2a3656; }
+  @media (prefers-color-scheme: dark) { :root { --wish-bg: #1d1714; --wish-card: #2a221d; --wish-dark: #3a2b24; --wish-accent: #ef8a72; } }
+  body.wishmode { background: var(--wish-bg); }
+  /* Deudas: the mountain */
+  :root { --mtn-sky-1: #f6d9c4; --mtn-sky-2: #f9ece0; --mtn-sun: #f4b860; --mtn-back: #b9c7d6; --mtn-rock: #8d7b6e; --mtn-hill: #6f9e6a;
+    --mtn-lake: #6aa7c9; --mtn-trail: #f1e3c6; --mtn-trail-done: #d4664f; --mtn-ink: #2e211c; --mtn-flag: #d4664f; --mtn-me: #f2c14e; }
+  @media (prefers-color-scheme: dark) { :root { --mtn-sky-1: #2b2340; --mtn-sky-2: #4a3550; --mtn-sun: #f1d59a; --mtn-back: #4b5568; --mtn-rock: #6b5b52; --mtn-hill: #3f6b45; --mtn-trail: #d9c8a6; } }
+  .mtn { margin: 8px -16px 0; position: relative; }
+  .mtn svg { display: block; }
+  .mtn-panel { background: var(--wish-card); margin: -26px 12px 0; border-radius: 24px 24px 20px 20px; padding: 16px 18px; position: relative; text-align: center; box-shadow: var(--shadow); }
+  .mtn-next { display: inline-block; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 10px; border: 1.5px dashed var(--sun); background: var(--sun-soft); color: var(--ink); margin-bottom: 6px; }
+  .wish h1, .wish h3 { letter-spacing: -.02em; font-weight: 800; }
+  .wish h3 { margin: 0; font-size: 18px; }
+  .wh { margin: 22px 2px 10px; }
+  .pill { border-radius: 99px; padding: 9px 16px; font-weight: 700; background: var(--wish-accent); color: #fff; }
+  .pill.dark { background: var(--wish-dark); color: #fff; }
+  .pill.ghostpill { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+  .jarcard { background: var(--wish-dark); color: #fff; border-radius: 24px; padding: 20px; display: flex; gap: 12px; align-items: center; box-shadow: var(--shadow); }
+  .jarcard .eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; opacity: .8; font-weight: 700; }
+  .jarcard .big { font-size: 40px; font-weight: 800; letter-spacing: -.02em; margin: 2px 0 6px; }
+  .jar { flex: none; }
+  .wcard { background: var(--wish-card); border-radius: 20px; padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--shadow); }
+  .wcard.ready { border: 2px solid var(--wish-dark); }
+  .wicon { width: 40px; height: 40px; border-radius: 12px; background: var(--card-2); display: grid; place-items: center; font-size: 20px; flex: none; }
+  .wnote { background: var(--card-2); border-radius: 12px; padding: 10px 12px; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+  .chip { font-size: 12px; padding: 4px 10px; border-radius: 99px; background: var(--card-2); color: var(--ink-2); white-space: nowrap; }
+  .payday { float: right; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 10px; border: 1.5px dashed #ffffffaa; transform: rotate(4deg); }
+  .kept { background: var(--card); border-radius: 18px; padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--shadow); transform: rotate(-1deg); }
+  .eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+  :root { --jar-lid: #d9cbbb; --jar-glass: #f3ece4; --jar-edge: #d9cbbb; }
+  @media (prefers-color-scheme: dark) { :root { --jar-lid: #5a4a3f; --jar-glass: #2f2722; --jar-edge: #5a4a3f; } }
+  .seg { display: flex; background: var(--card-2); border-radius: 12px; padding: 3px; margin-bottom: 16px; }
+  .seg button { flex: 1; background: transparent; padding: 8px; border-radius: 10px; font-weight: 600; color: var(--muted); }
+  .seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+  .goal-hero { text-align: center; padding: 6px 0 4px; }
+  .goal-hero .tilt { display: inline-block; transform: rotate(-3deg); filter: drop-shadow(0 8px 16px #0002); }
+  .ms { position: relative; height: 8px; background: var(--card-2); border-radius: 99px; margin: 14px 18px 10px; }
+  .ms b { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; }
+  .ms i { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--card); border: 2px solid var(--line); z-index: 1; }
+  .ms i.on { border-color: var(--ink); }
+  .pill.wide { width: 100%; padding: 14px; font-size: 16px; margin-top: 12px; }
+  .addchip { font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 99px; background: var(--red-soft); color: var(--red); flex: none; }
+  .stashes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stash { background: var(--card); border-radius: 18px; padding: 12px; box-shadow: var(--shadow); min-width: 0; }
+  .sicon { width: 34px; height: 34px; border-radius: 10px; background: var(--card-2); display: grid; place-items: center; font-size: 18px; flex: none; }
+  .sicon.big-icon { width: 72px; height: 72px; border-radius: 22px; font-size: 38px; margin: 0 auto; }
+  .sname { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sleft { font-size: 20px; font-weight: 800; margin-top: 10px; letter-spacing: -.01em; }
+  .sleft span { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .sleft.over { color: var(--red); }
+  .stash-hero { text-align: center; padding: 8px 4px 18px; }
+  .chip.ok { background: var(--accent-soft); color: var(--accent); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -111,6 +165,7 @@
   <button data-tab="spend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Gastos</button>
   <button data-tab="debts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/></svg>Deudas</button>
   <button data-tab="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Resumen</button>
+  <button data-tab="wish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 4h10M8 4v3a4 4 0 0 0-2 3.5V18a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7.5A4 4 0 0 0 16 7V4"/><path d="M6 14h12"/></svg>Metas</button>
   <button data-tab="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>Más</button>
 </nav>
 
@@ -121,7 +176,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.4"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.6"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -155,6 +210,9 @@ function load() {
   d.tx = d.tx || {}; d.overrides = d.overrides || {}; d.rules = d.rules || defaultRules();
   // base salary by month it applies to (the salary paid at the end of November is the December budget)
   d.salary = d.salary || [];
+  d.wish = d.wish || [];
+  d.limits = d.limits || {};
+  d.goals = d.goals || [];
   return d;
 }
 let db = load();
@@ -235,13 +293,34 @@ dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
 function render() {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === state.tab));
   $("#fab").hidden = !(state.tab === "month" || state.tab === "spend");
-  ({ month: viewMonth, spend: viewSpend, debts: viewDebts, stats: viewStats, more: viewMore })[state.tab]();
+  document.body.classList.toggle("wishmode", state.tab === "wish");
+  ({ month: viewMonth, spend: viewSpend, debts: viewDebts, stats: viewStats, wish: viewWish, more: viewMore })[state.tab]();
 }
 
 function monthBar() {
   return `<div class="monthbar"><button class="icon" data-act="prev" aria-label="Mes anterior">‹</button><h1>${ymLabel(state.ym)}</h1><button class="icon" data-act="next" aria-label="Mes siguiente">›</button></div>`;
 }
 
+/* Payday: the salary paid at month end starts the next budget month. */
+function paydayInfo(ym, left) {
+  if (ym !== ymNow()) return {};
+  const day = db.payday || 27, today = new Date().getDate();
+  if (today >= day) return { badge: "💸 día de sueldo", line: `Empieza ${ymLabel(ymShift(ym, 1)).toLowerCase()}: mira el mes siguiente` };
+  const n = day - today;
+  return { line: left > 0 ? `unos <b>${eur(left / n, false)} al día</b> por ${n} ${n === 1 ? "día" : "días"} hasta el sueldo` : `${n} ${n === 1 ? "día" : "días"} hasta el sueldo` };
+}
+/* Month closed: what came in, what went out, what you kept. Shown at the top of the following month. */
+function keptCard(ym) {
+  const prev = ymShift(ym, -1), m = getMonth(prev); if (!m || !isClosed(prev) || ym > ymNow()) return "";
+  const t = totals(m, prev), out = t.outflow + t.savings;
+  return `<div class="kept" data-act="goMonth" data-ym="${prev}">
+    <div class="small muted" style="margin-bottom:6px">Cierre de ${ymLabel(prev).toLowerCase()}</div>
+    <div class="row small"><span class="grow">Entró</span><span class="num">${eur(t.income)}</span></div>
+    <div class="row small"><span class="grow">Salió (gastos, deudas y ahorro)</span><span class="num">−${eur(out)}</span></div>
+    <div class="row" style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px"><span class="grow eyebrow" style="color:${t.left >= 0 ? "var(--accent)" : "var(--red)"}">${t.left >= 0 ? "Te quedó" : "Te faltó"}</span><b class="num" style="font-size:22px;color:${t.left >= 0 ? "var(--accent)" : "var(--red)"}">${eur(Math.abs(t.left))}</b></div>
+    ${t.savings > 0 ? `<div class="small muted" style="margin-top:4px">y además ahorraste ${eur(t.savings)}</div>` : ""}
+  </div>`;
+}
 function viewMonth() {
   const m = getMonth(state.ym);
   if (!m) {
@@ -257,10 +336,15 @@ function viewMonth() {
   }
   const t = totals(m, state.ym);
   const debtsThis = db.debts.filter((d) => debtFor(d, state.ym));
-  let html = monthBar() + `
+  const billsOut = sum([...m.fixed, ...m.variable], (x) => x.paid || 0) + sum(db.debts, (d) => (d.bank && d.bank[state.ym] ? d.payments[state.ym] || 0 : 0));
+  const pay = paydayInfo(state.ym, t.left);
+  let html = monthBar() + keptCard(state.ym) + `
     <div class="hero ${t.left < 0 ? "neg" : ""}">
+      ${pay.badge ? `<span class="payday">${pay.badge}</span>` : ""}
       <div class="lbl">Money left</div>
       <div class="big num">${eur(t.left)}</div>
+      ${pay.line ? `<div class="lbl" style="opacity:1;margin-top:2px">${pay.line}</div>` : ""}
+      ${billsOut ? `<div class="lbl" style="margin-top:4px">🧾 ${eur(billsOut, false)} de cuentas y deudas ya pagadas</div>` : ""}
       <div class="stats">
         <div><span>Ingresos</span><b class="num">${eur(t.income, false)}</b></div>
         <div><span>Gastos</span><b class="num">${eur(t.outflow, false)}</b></div>
@@ -302,35 +386,120 @@ function section(id, label, list, hint) {
   return h + `</div>`;
 }
 
+/* Category budgets ("bolsillos"): every category can get a monthly limit; the card shows what is left
+   and how much that is per day for the rest of the month. */
+const CAT_ICON = { Supermercado: "🛒", "Comida fuera": "🍔", Transporte: "🚇", Casa: "🏠", Salud: "💊", Ropa: "👗", Ocio: "🎮",
+  "Cuidado personal": "💅", Compras: "🛍️", Efectivo: "💶", Suscripciones: "📺", Viajes: "✈️", Regalos: "🎁", Seguros: "🛡️",
+  Transferencias: "🔁", [N26CAT]: "💳", Otros: "📦", [UNCAT]: "❓" };
+const catIcon = (c) => CAT_ICON[c] || "🏷️";
+function stashLimit(cat, ym) { const top = ((getMonth(ym) || {}).tops || {})[cat] || 0; return ((db.limits || {})[cat] || 0) + top; }
+function daysLeft(ym) {
+  const cur = ymNow(); if (ym < cur) return 0;
+  const [y, m] = ym.split("-").map(Number), dim = new Date(y, m, 0).getDate();
+  return ym > cur ? dim : dim - new Date().getDate() + 1;
+}
+function stashNumbers(m, cat, ym) {
+  const spent = sum(m.expenses.filter((e) => (e.cat || "Otros") === cat)), limit = stashLimit(cat, ym), left = limit - spent, days = daysLeft(ym);
+  return { spent, limit, left, days, perDay: limit && left > 0 && days ? left / days : 0 };
+}
+function expRow(e) {
+  return `<div class="line" data-act="editExp" data-id="${e.id}"><span class="small muted num" style="width:44px">${e.date ? e.date.slice(8, 10) + "." + e.date.slice(5, 7) : ""}</span><span class="name">${esc(e.note || e.cat)}${e.note && !state.stash ? ` <span class="tag">${esc(e.cat)}</span>` : ""}${e.src === "bank" ? ` <span class="tag">${e.acct === "n26" ? "N26" : "CB"}</span>` : ""}</span><span class="num">${eur(e.amount)}</span></div>`;
+}
 function viewSpend() {
   const m = getMonth(state.ym);
   let html = monthBar();
   if (!m) { app.innerHTML = html + `<div class="card empty">Primero crea el presupuesto de este mes en <b>Mes</b>.</div>`; return; }
   const list = m.expenses.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  if (state.stash) return viewStash(m, state.stash, list, html);
   const byCat = {}; list.forEach((e) => (byCat[e.cat || "Otros"] = (byCat[e.cat || "Otros"] || 0) + e.amount));
-  const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
-  const total = sum(list);
-  html += `<h2>Por categoría</h2><div class="card">`;
-  if (!cats.length) html += `<div class="muted small">Anota gastos con el botón +.</div>`;
-  cats.forEach(([c, v]) => (html += `<div style="padding:6px 0" data-act="filter" data-cat="${esc(c)}"><div class="row"><span class="grow">${esc(c)}</span><span class="num">${eur(v)}</span></div><div class="bar"><i style="width:${(v / total) * 100}%"></i></div></div>`));
-  html += `</div>`;
+  const cats = [...new Set([...Object.keys(db.limits || {}).filter((c) => db.limits[c] > 0), ...Object.keys(byCat)])]
+    .map((c) => ({ c, ...stashNumbers(m, c, state.ym) }))
+    .sort((a, b) => (b.limit > 0) - (a.limit > 0) || b.spent - a.spent);
   const unc = list.filter((e) => e.cat === UNCAT).length;
-  if (unc && state.spendFilter !== UNCAT) html = html.replace(`<h2>Por categoría</h2>`, `<div class="card" data-act="filter" data-cat="${UNCAT}" style="background:var(--sun-soft)"><b>${unc} movimientos sin categoría</b><div class="small">Tócalos para decir qué son. La app recuerda tu respuesta para los próximos.</div></div><h2>Por categoría</h2>`);
+  if (unc && state.spendFilter !== UNCAT) html += `<div class="card" data-act="filter" data-cat="${UNCAT}" style="background:var(--sun-soft)"><b>${unc} movimientos sin categoría</b><div class="small">Tócalos para decir qué son. La app recuerda tu respuesta para los próximos.</div></div>`;
+  html += `<h2>Bolsillos <span class="small muted" style="text-transform:none;letter-spacing:0">toca uno para ponerle límite</span></h2>`;
+  if (!cats.length) html += `<div class="card muted small">Anota gastos con el botón + o importa un extracto.</div>`;
+  html += `<div class="stashes">${cats.map((x) => {
+    const over = x.limit && x.left < 0;
+    return `<div class="stash" data-act="openStash" data-cat="${esc(x.c)}"><div class="row" style="gap:8px"><span class="sicon">${catIcon(x.c)}</span><b class="grow sname">${esc(x.c)}</b></div>
+      ${x.limit ? `<div class="num sleft ${over ? "over" : ""}">${eur(Math.abs(x.left), false)} <span>${over ? "pasado" : "quedan"}</span></div>
+        <div class="bar"><i style="width:${Math.min(100, (x.spent / x.limit) * 100)}%;background:${over ? "var(--red)" : x.spent / x.limit > 0.8 ? "var(--sun)" : "var(--accent)"}"></i></div>`
+      : `<div class="num sleft">${eur(x.spent, false)} <span>gastado</span></div><div class="small muted">sin límite</div>`}
+    </div>`; }).join("")}</div>`;
   const shown = state.spendFilter ? list.filter((e) => (e.cat || "Otros") === state.spendFilter) : list;
   html += `<h2>${state.spendFilter ? esc(state.spendFilter) : "Todos"} · ${eur(sum(shown))} ${state.spendFilter ? `<button class="ghost" data-act="filter" data-cat="">Quitar filtro</button>` : ""}</h2><div class="card">`;
   if (!shown.length) html += `<div class="muted small">Nada todavía.</div>`;
-  shown.forEach((e) => (html += `<div class="line" data-act="editExp" data-id="${e.id}"><span class="small muted num" style="width:44px">${e.date ? e.date.slice(8, 10) + "." + e.date.slice(5, 7) : ""}</span><span class="name">${esc(e.note || e.cat)}${e.note ? ` <span class="tag">${esc(e.cat)}</span>` : ""}${e.src === "bank" ? ` <span class="tag">${e.acct === "n26" ? "N26" : "CB"}</span>` : ""}</span><span class="num">${eur(e.amount)}</span></div>`));
+  shown.forEach((e) => (html += expRow(e)));
   app.innerHTML = html + `</div>`;
 }
+function viewStash(m, cat, list, html) {
+  const x = stashNumbers(m, cat, state.ym), mine = list.filter((e) => (e.cat || "Otros") === cat), over = x.limit && x.left < 0;
+  const top = ((m.tops || {})[cat]) || 0;
+  html += `<button class="ghost" data-act="stashBack" style="padding-left:0">‹ Bolsillos</button>
+    <div class="stash-hero">
+      <div class="sicon big-icon">${catIcon(cat)}</div>
+      <div style="font-weight:800;font-size:18px;margin-top:10px">${esc(cat)}</div>
+      ${x.limit ? `<div class="num" style="font-size:44px;font-weight:800;letter-spacing:-.02em;${over ? "color:var(--red)" : ""}">${eur(Math.abs(x.left))}</div>
+        <div class="small muted">${over ? "pasado de" : "quedan de"} ${eur(x.limit, false)} este mes${top ? ` (incluye +${eur(top, false)} extra)` : ""}</div>
+        <div class="bar" style="margin:12px 8px 8px;height:10px"><i style="width:${Math.min(100, (x.spent / x.limit) * 100)}%;background:${over ? "var(--red)" : "var(--accent)"}"></i></div>
+        <div class="small">${x.perDay ? `unos <b>${eur(x.perDay)} al día</b> por ${x.days} ${x.days === 1 ? "día" : "días"}` : over ? "Este bolsillo ya se pasó este mes." : x.days ? "No queda nada para este mes." : `Gastaste ${eur(x.spent)} en total.`}</div>`
+      : `<div class="num" style="font-size:44px;font-weight:800;letter-spacing:-.02em">${eur(x.spent)}</div><div class="small muted">gastado este mes · sin límite</div>`}
+      <div class="row" style="gap:8px;margin-top:16px"><button class="pill dark grow" data-act="stashLog">+ Anotar gasto</button>${x.limit ? `<button class="pill ghostpill" data-act="stashTop">💰 Sumar</button>` : ""}</div>
+    </div>
+    <div class="card"><div class="line" data-act="stashLimit"><span class="name">Límite mensual</span><span class="num">${(db.limits || {})[cat] ? eur(db.limits[cat], false) : "sin límite"}</span><span class="muted">›</span></div>
+      <div class="small muted" style="padding-top:6px">El límite se repite cada mes. "Sumar" agrega dinero solo a este mes.</div></div>
+    <h2>Movimientos · ${eur(x.spent)}</h2><div class="card">${mine.length ? mine.map(expRow).join("") : `<div class="muted small">Nada este mes.</div>`}</div>`;
+  app.innerHTML = html;
+}
 
+/* Debt mountain: a trail from the bottom to the summit; the marker sits where the payments got you. */
+const MILESTONES = [{ at: 0.25, name: "Primer refugio" }, { at: 0.5, name: "La laguna" }, { at: 0.75, name: "El mirador" }, { at: 1, name: "La cumbre" }];
+const TRAIL = [[170, 262], [250, 240], [118, 214], [232, 186], [132, 160], [214, 132], [152, 104], [190, 80], [170, 52]];
+function trailPoint(f) {
+  const seg = TRAIL.slice(1).map((p, i) => Math.hypot(p[0] - TRAIL[i][0], p[1] - TRAIL[i][1]));
+  let d = Math.max(0, Math.min(1, f)) * seg.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < seg.length; i++) { if (d <= seg[i]) { const t = d / seg[i], a = TRAIL[i], b = TRAIL[i + 1]; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; } d -= seg[i]; }
+  return TRAIL[TRAIL.length - 1];
+}
+function mountainSvg(p) {
+  const pts = TRAIL.map((x) => x.join(",")).join(" ");
+  const done = [], steps = 40; for (let i = 0; i <= steps; i++) { const f = (i / steps) * p; done.push(trailPoint(f).map((v) => v.toFixed(1)).join(",")); }
+  const [mx, my] = trailPoint(p);
+  const stones = MILESTONES.slice(0, 3).map((m) => { const [x, y] = trailPoint(m.at); return `<circle cx="${x}" cy="${y}" r="5" fill="${p >= m.at ? "var(--mtn-trail-done)" : "#fff"}" stroke="var(--mtn-ink)" stroke-width="2"/>`; }).join("");
+  return `<svg viewBox="0 0 340 280" width="100%" role="img" aria-label="Montaña de deudas: ${Math.round(p * 100)}% subido">
+    <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--mtn-sky-1)"/><stop offset="1" stop-color="var(--mtn-sky-2)"/></linearGradient></defs>
+    <rect width="340" height="280" fill="url(#sky)"/>
+    <circle cx="282" cy="52" r="20" fill="var(--mtn-sun)"/>
+    <path d="M-10 280 L70 130 L130 210 L190 120 L260 220 L350 140 V280 Z" fill="var(--mtn-back)"/>
+    <path d="M20 280 L170 40 L320 280 Z" fill="var(--mtn-rock)"/>
+    <path d="M170 40 L196 82 L182 76 L170 90 L158 76 L144 82 Z" fill="#fff"/>
+    <path d="M-10 280 Q60 220 120 240 T240 236 T350 226 V280 Z" fill="var(--mtn-hill)"/>
+    <ellipse cx="96" cy="166" rx="26" ry="8" fill="var(--mtn-lake)" opacity=".9"/>
+    <polyline points="${pts}" fill="none" stroke="var(--mtn-trail)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="${done.join(" ")}" fill="none" stroke="var(--mtn-trail-done)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    ${stones}
+    <line x1="170" y1="52" x2="170" y2="24" stroke="var(--mtn-ink)" stroke-width="2.5"/><path d="M170 24 L192 31 L170 38 Z" fill="var(--mtn-flag)"/>
+    <g transform="translate(${mx.toFixed(1)} ${my.toFixed(1)})"><circle r="11" fill="var(--mtn-ink)"/><circle r="7" fill="var(--mtn-me)"/></g>
+  </svg>`;
+}
 function viewDebts() {
   let html = `<h1>Deudas</h1><p class="sub">Lo que pagas cada mes y lo que queda.</p>`;
   const open = db.debts.filter((d) => !d.closed), closed = db.debts.filter((d) => d.closed);
   const totalLeft = sum(open, (d) => debtLeft(d));
   const perMonth = sum(open, (d) => (d.plan ? debtFor(d, ymNow()) : d.monthly || 0));
-  if (open.length) html += `<div class="hero" style="background:var(--plum)"><div class="lbl">${totalLeft ? "Total que queda" : "Pagas al mes"}</div><div class="big num">${eur(totalLeft || perMonth)}</div>
-    ${totalLeft && perMonth ? `<div class="lbl" style="margin-top:4px">${eur(perMonth, false)} al mes</div>` : ""}
-    ${open.some((d) => !d.total && !d.plan) ? `<div class="lbl" style="margin-top:4px">Pon el total original en cada deuda para ver cuánto queda.</div>` : ""}</div>`;
+  // the mountain: debts where we know what is left (a plan or an original total)
+  const climb = open.filter((d) => d.plan || d.total);
+  const cLeft = sum(climb, (d) => debtLeft(d)), cPaid = sum(climb, (d) => debtPaid(d, ymShift(ymNow(), -1)));
+  if (climb.length && cLeft + cPaid > 0) {
+    html = `<div class="mtn">${mountainSvg(cPaid / (cPaid + cLeft))}
+      <div class="mtn-panel">${(() => { const p = cPaid / (cPaid + cLeft), nx = MILESTONES.find((m) => m.at > p + 1e-9);
+        return nx ? `<div class="mtn-next">⚑ siguiente: ${nx.name} · faltan ${eur(nx.at * (cPaid + cLeft) - cPaid, false)}</div>` : `<div class="mtn-next">⚑ ¡llegaste a la cumbre!</div>`; })()}
+        <div class="big num" style="font-size:38px;font-weight:800;letter-spacing:-.02em">${eur(cLeft, false)}</div>
+        <div class="small">por subir · <b>${eur(cPaid, false)}</b> pagados hasta ahora</div>
+        <div class="small muted" style="margin-top:6px">${climb.map((d) => esc(d.name)).join(", ")} · ${eur(perMonth, false)} al mes en todas tus deudas${open.length > climb.length ? ` (${open.filter((d) => !d.plan && !d.total).map((d) => esc(d.name)).join(", ")} sin total: no está en la montaña)` : ""}</div>
+      </div></div>` + html.replace(`<h1>Deudas</h1>`, `<h1 style="margin-top:18px">Deudas</h1>`);
+  } else if (open.length) html += `<div class="hero" style="background:var(--plum)"><div class="lbl">Pagas al mes</div><div class="big num">${eur(perMonth)}</div>
+    <div class="lbl" style="margin-top:4px">Pon el total original en cada deuda para ver cuánto queda.</div></div>`;
   html += `<h2>Activas <button class="ghost" data-act="addDebt">+ Añadir</button></h2>`;
   if (!open.length) html += `<div class="card empty">Sin deudas activas.</div>`;
   open.forEach((d) => (html += debtCard(d)));
@@ -422,6 +591,182 @@ function viewMore() {
     <h2>Peligro</h2><div class="card"><button class="danger" data-act="wipe">Borrar todos los datos</button></div>`;
 }
 
+/* ---------- Deseos: wait before you buy ---------- */
+const DAY = 86400000;
+const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const parseDay = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const WISH_ICONS = ["🛍️", "👟", "👗", "🎧", "📱", "💄", "🏠", "✈️", "🎁", "📚", "🎮", "✨"];
+function wishInfo(w) {
+  const held = Math.max(0, Math.round((today0() - parseDay(w.added)) / DAY));
+  return { held, left: Math.max(0, w.days - held), ready: held >= w.days };
+}
+function jarSvg(n) {
+  // a jar that fills with coins: one coin per thing let go (shown up to 24)
+  const coins = []; const shown = Math.min(n, 24);
+  for (let i = 0; i < shown; i++) {
+    const row = Math.floor(i / 4), col = i % 4;
+    coins.push(`<ellipse cx="${24 + col * 16 + (row % 2 ? 8 : 0)}" cy="${118 - row * 11}" rx="8" ry="5" fill="var(--coin)" stroke="var(--coin-edge)" stroke-width="1.5"/>`);
+  }
+  return `<svg viewBox="0 0 100 140" width="92" height="128" aria-hidden="true">
+    <rect x="22" y="6" width="56" height="16" rx="5" fill="var(--lid)"/>
+    <rect x="18" y="20" width="64" height="8" rx="3" fill="var(--lid-2)"/>
+    <path d="M18 30 Q8 34 8 50 V122 Q8 134 22 134 H78 Q92 134 92 122 V50 Q92 34 82 30 Z" fill="var(--glass)" stroke="var(--glass-edge)" stroke-width="2.5"/>
+    <g clip-path="url(#jarClip)">${coins.join("")}</g>
+    <clipPath id="jarClip"><path d="M18 30 Q8 34 8 50 V122 Q8 134 22 134 H78 Q92 134 92 122 V50 Q92 34 82 30 Z"/></clipPath>
+    <path d="M20 46 V112" stroke="#ffffff66" stroke-width="4" stroke-linecap="round"/>
+  </svg>`;
+}
+/* ---------- Metas: savings goals that fill a jar ---------- */
+const GOAL_ICONS = ["🏠", "✈️", "🛟", "🚗", "🎓", "💍", "💻", "🌴", "👶", "🐶", "🎁", "⭐"];
+const GOAL_COLORS = ["#d4664f", "#5b9bd5", "#5fb58a", "#c98a1b", "#8a4f7d"];
+function goalNumbers(g) {
+  const saved = sum(g.deposits || []), pct = g.target ? Math.min(1, saved / g.target) : 0;
+  const nextMs = [0.25, 0.5, 0.75, 1].find((x) => x > pct + 1e-9);
+  let perMonth = 0, monthsLeft = 0;
+  if (g.date && saved < g.target) { monthsLeft = Math.max(1, (Number(g.date.slice(0, 4)) - new Date().getFullYear()) * 12 + Number(g.date.slice(5, 7)) - (new Date().getMonth() + 1) + 1); perMonth = (g.target - saved) / monthsLeft; }
+  return { saved, pct, nextMs, toNext: nextMs ? nextMs * g.target - saved : 0, perMonth, monthsLeft };
+}
+function goalJar(pct, color, size, icon) {
+  // simple jar outline; the liquid level follows the percentage, with a soft wave on top
+  const H = 120, top = 26 + (1 - pct) * (H - 6), w = (top + 6).toFixed(1);
+  return `<svg viewBox="0 0 120 160" width="${size}" height="${(size * 160) / 120}" aria-hidden="true">
+    <rect x="16" y="12" width="88" height="18" rx="8" fill="var(--jar-lid)"/>
+    <clipPath id="gj${size}"><rect x="12" y="30" width="96" height="122" rx="22"/></clipPath>
+    <rect x="12" y="30" width="96" height="122" rx="22" fill="var(--jar-glass)" stroke="var(--jar-edge)" stroke-width="4"/>
+    <g clip-path="url(#gj${size})"><path d="M0 ${top.toFixed(1)} Q30 ${top - 6} 60 ${top} T120 ${top} V170 H0 Z" fill="${color}" opacity=".85"/>
+      <path d="M0 ${w} Q30 ${top} 60 ${w} T120 ${w}" fill="none" stroke="#ffffff55" stroke-width="3"/></g>
+    <rect x="24" y="44" width="8" height="90" rx="4" fill="#ffffff66"/>
+    ${size > 60 ? `<text x="60" y="${Math.min(140, Math.max(top + 30, 70))}" text-anchor="middle" style="font-size:28px;font-weight:800;fill:#fff;stroke:${pct > 0.35 ? color : "var(--ink)"};stroke-width:5px;paint-order:stroke">${Math.round(pct * 100)}%</text>` : ""}
+    ${icon ? `<g transform="translate(60 14)"><circle r="16" fill="var(--wish-card)" stroke="var(--jar-edge)" stroke-width="2"/><text y="7" text-anchor="middle" style="font-size:18px;fill:var(--ink)">${icon}</text></g>` : ""}
+  </svg>`;
+}
+function viewGoals() {
+  const goals = db.goals || [];
+  let html = `<div class="row" style="margin-top:4px"><h2 class="grow" style="margin:0 2px;font-size:18px;text-transform:none;letter-spacing:-.02em;color:var(--ink);font-weight:800">Ahorrando para</h2><button class="pill" data-act="addGoal">+ Meta</button></div>`;
+  if (!goals.length) return html + `<div class="wcard" style="margin-top:12px;text-align:center">${goalJar(0, GOAL_COLORS[0], 90)}<p><b>Ahorra para lo grande.</b><br><span class="small muted">Un viaje, un fondo de emergencia, un depósito. Cada meta es un frasco que se va llenando.</span></p></div>`;
+  const pin = goals.find((g) => g.id === db.goalPin) || goals[0];
+  const p = goalNumbers(pin);
+  html += `<div class="goal-hero" data-act="editGoal" data-id="${pin.id}">
+    <div class="tilt">${goalJar(p.pct, pin.color, 150, pin.icon)}</div>
+    <div class="num" style="font-size:36px;font-weight:800;letter-spacing:-.02em;margin-top:6px">${eur(p.saved)}</div>
+    <div class="small muted">de ${eur(pin.target, false)}${pin.date ? ` · ${ymLabel(pin.date).toLowerCase()}` : ""} · ${esc(pin.name)}</div>
+    <div class="ms">${[0.25, 0.5, 0.75, 1].map((x) => `<i class="${p.pct >= x ? "on" : ""}" style="left:${x * 100}%"></i>`).join("")}<b style="width:${p.pct * 100}%;background:${pin.color}"></b></div>
+    <div class="small">${p.nextMs ? `<b style="color:${pin.color}">${eur(p.toNext)}</b> más para llegar al ${Math.round(p.nextMs * 100)}%` : "🎉 ¡Meta cumplida!"}</div>
+    ${p.perMonth ? `<div class="small muted" style="margin-top:4px">ahorra unos ${eur(p.perMonth, false)} al mes para llegar a tiempo</div>` : ""}
+  </div>
+  <button class="pill wide" style="background:${pin.color}" data-act="goalAdd" data-id="${pin.id}">Agregar dinero</button>`;
+  const others = goals.filter((g) => g !== pin);
+  if (others.length) html += `<div class="row" style="margin:20px 2px 8px"><span class="eyebrow muted grow">También ahorrando para</span><span class="small muted">toca para fijar</span></div>`;
+  others.forEach((g) => { const n = goalNumbers(g);
+    html += `<div class="wcard row" data-act="pinGoal" data-id="${g.id}" style="gap:12px">${goalJar(n.pct, g.color, 34)}
+      <div class="grow" style="min-width:0"><div class="row"><b class="grow sname" style="font-size:15px">${g.icon} ${esc(g.name)}</b><span class="small muted">${Math.round(n.pct * 100)}%</span></div>
+        <div class="small muted">${eur(n.saved, false)} de ${eur(g.target, false)}${g.date ? ` · ${ymLabel(g.date, true)}` : ""}</div>
+        <div class="bar"><i style="width:${n.pct * 100}%;background:${g.color}"></i></div></div>
+      <button class="addchip" data-act="goalAdd" data-id="${g.id}">+ Agregar</button></div>`; });
+  return html;
+}
+function goalDialog(id) {
+  db.goals = db.goals || [];
+  const g = id ? db.goals.find((x) => x.id === id) : null;
+  let icon = g?.icon || GOAL_ICONS[0], color = g?.color || GOAL_COLORS[db.goals.length % GOAL_COLORS.length];
+  openDialog(`<form><h3>${g ? "Editar meta" : "Nueva meta"}</h3>
+    <div class="field"><label>Para qué</label><input name="name" value="${esc(g?.name || "")}" required placeholder="Viaje a Chile, fondo de emergencia…"></div>
+    <div class="row"><div class="field grow"><label>Meta €</label><input name="target" inputmode="decimal" value="${g ? String(g.target).replace(".", ",") : ""}" required></div>
+      <div class="field grow"><label>Para cuándo (opcional)</label><input name="date" type="month" value="${g?.date || ""}"></div></div>
+    ${g ? "" : `<div class="field"><label>Ya tengo ahorrado € (opcional)</label><input name="start" inputmode="decimal"></div>`}
+    <div class="field"><label>Ícono</label><div class="chips" id="gicons">${GOAL_ICONS.map((i) => `<button type="button" data-i="${i}" class="${i === icon ? "on" : ""}">${i}</button>`).join("")}</div></div>
+    <div class="field"><label>Color</label><div class="chips" id="gcolors">${GOAL_COLORS.map((c) => `<button type="button" data-c="${c}" class="${c === color ? "on" : ""}" style="width:34px;height:34px;padding:0;background:${c}" aria-label="color"></button>`).join("")}</div></div>
+    ${g && (g.deposits || []).length ? `<div class="field"><label>Aportes</label><div class="small">${g.deposits.slice().reverse().slice(0, 8).map((d) => `<div class="row"><span class="grow muted">${d.date.split("-").reverse().join(".")}</span><span class="num">${eur(d.amount)}</span></div>`).join("")}</div></div>` : ""}
+    <div class="actions">${g ? `<button type="button" class="danger" data-del>Borrar</button><span class="grow"></span>` : ""}<button type="button" data-close>Cancelar</button><button class="primary">Guardar</button></div></form>`,
+  (d) => {
+    const f = d.querySelector("form");
+    const pick = (sel, attr, set) => (d.querySelector(sel).onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; set(b.dataset[attr]); d.querySelectorAll(sel + " button").forEach((x) => x.classList.toggle("on", x === b)); });
+    pick("#gicons", "i", (v) => (icon = v)); pick("#gcolors", "c", (v) => (color = v));
+    d.querySelector("[data-close]").onclick = () => d.close();
+    const del = d.querySelector("[data-del]"); if (del) del.onclick = () => { if (!confirm(`¿Borrar la meta ${g.name}?`)) return; db.goals = db.goals.filter((x) => x !== g); save(); d.close(); render(); };
+    f.onsubmit = (ev) => { ev.preventDefault(); const name = f.name.value.trim(), target = num(f.target.value); if (!name || !target) return;
+      if (g) Object.assign(g, { name, target, date: f.date.value, icon, color });
+      else { const ng = { id: uid(), name, target, date: f.date.value, icon, color, deposits: [] }; const st = num(f.start?.value); if (st) ng.deposits.push({ date: isoDay(today0()), amount: st }); db.goals.push(ng); if (!db.goalPin) db.goalPin = ng.id; }
+      save(); d.close(); render(); };
+  });
+}
+function goalAddMoney(id) {
+  const g = (db.goals || []).find((x) => x.id === id); if (!g) return;
+  const v = prompt(`¿Cuánto agregas a ${g.name}? (€). Usa un número negativo si sacaste plata.`); if (v == null || !num(v)) return;
+  const before = goalNumbers(g).pct; g.deposits = g.deposits || []; g.deposits.push({ date: isoDay(today0()), amount: num(v) }); save();
+  const after = goalNumbers(g).pct, hit = [0.25, 0.5, 0.75, 1].find((x) => before < x && after >= x);
+  render(); toast(hit ? (hit === 1 ? `🎉 ¡Cumpliste ${g.name}!` : `✨ ${g.name} llegó al ${hit * 100}%`) : `+${eur(num(v))} a ${g.name}`);
+}
+
+function viewWish() {
+  const list = db.wish || [];
+  const holding = list.filter((w) => w.status === "holding").map((w) => ({ w, ...wishInfo(w) }));
+  const ready = holding.filter((x) => x.ready), waiting = holding.filter((x) => !x.ready).sort((a, b) => a.left - b.left);
+  const let_ = list.filter((w) => w.status === "let"), bought = list.filter((w) => w.status === "bought");
+  const saved = sum(let_, (w) => w.price);
+  const since = let_.length ? let_.map((w) => w.decided).sort()[0] : null;
+  const seg = `<h1 style="margin:8px 0 10px">Metas</h1><div class="seg"><button data-act="metaSeg" data-seg="goals" class="${state.metaSeg !== "wish" ? "on" : ""}">Ahorro</button><button data-act="metaSeg" data-seg="wish" class="${state.metaSeg === "wish" ? "on" : ""}">Deseos</button></div>`;
+  if (state.metaSeg !== "wish") { app.innerHTML = `<div class="wish">${seg}${viewGoals()}</div>`; return; }
+  let html = `<div class="wish">${seg}
+    <div class="row" style="margin-top:4px"><h2 class="grow" style="margin:0 2px;font-size:18px;text-transform:none;letter-spacing:-.02em;color:var(--ink);font-weight:800">Deseos</h2><button class="pill" data-act="addWish">+ Añadir</button></div>
+    <p class="sub" style="margin-top:6px">Anótalo aquí en vez de comprarlo. Cuando termine la espera, decides si todavía lo quieres.</p>
+    <div class="jarcard">
+      <div class="grow">
+        <div class="eyebrow">No gastaste</div>
+        <div class="big num">${eur(saved, saved % 1 !== 0)}</div>
+        <div class="small" style="opacity:.85">${let_.length ? `${let_.length} ${let_.length === 1 ? "cosa que dejaste ir" : "cosas que dejaste ir"} desde ${ymLabel(since.slice(0, 7)).toLowerCase()}. Cada una es una moneda en tu frasco.` : "Cuando dejes ir algo, su precio cae aquí como una moneda."}</div>
+      </div>
+      <div class="jar">${jarSvg(let_.length)}</div>
+    </div>`;
+  html += `<div class="row wh"><h3 class="grow">Listo para decidir</h3><span class="muted small">${ready.length} ${ready.length === 1 ? "cosa" : "cosas"}</span></div>`;
+  if (!ready.length) html += `<div class="wcard muted small">Nada por ahora. Aquí aparece lo que ya esperó lo suficiente.</div>`;
+  ready.forEach(({ w, held }) => (html += `<div class="wcard ready">
+    <div class="row"><span class="wicon">${w.icon || "🛍️"}</span><div class="grow"><b>${esc(w.name)}</b><div class="small muted">${eur(w.price)} · esperó ${held} ${held === 1 ? "día" : "días"}</div></div></div>
+    <div class="wnote">Pasaron los ${w.days} días. ¿Todavía lo quieres, o ya se te pasaron las ganas?</div>
+    <div class="row" style="gap:8px;margin-top:10px"><button class="pill ghostpill grow" data-act="wishLet" data-id="${w.id}">Lo dejo ir</button><button class="pill dark grow" data-act="wishBuy" data-id="${w.id}">Lo compro</button></div>
+  </div>`));
+  html += `<div class="row wh"><h3 class="grow">Esperando</h3><span class="muted small">${waiting.length} ${waiting.length === 1 ? "cosa" : "cosas"} · ${eur(sum(waiting, (x) => x.w.price), false)}</span></div>`;
+  if (!waiting.length) html += `<div class="wcard muted small">¿Viste algo que quieres? Tócalo en <b>+ Añadir</b> y espera unos días antes de comprarlo.</div>`;
+  waiting.forEach(({ w, held, left }) => (html += `<div class="wcard" data-act="editWish" data-id="${w.id}">
+    <div class="row"><span class="wicon">${w.icon || "🛍️"}</span><div class="grow"><b>${esc(w.name)}</b><div class="small muted">${eur(w.price)} · espera de ${w.days} días</div></div><span class="chip">${left === 1 ? "queda 1 día" : `quedan ${left} días`}</span></div>
+    <div class="bar"><i style="width:${Math.min(100, (held / w.days) * 100)}%;background:var(--wish-accent)"></i></div>
+  </div>`));
+  if (let_.length || bought.length) {
+    html += `<div class="row wh"><h3 class="grow">Decidido</h3><button class="ghost small" data-act="showDecided">${state.showDecided ? "Ocultar" : "Ver"}</button></div>`;
+    if (state.showDecided) html += `<div class="wcard">${[...let_, ...bought].sort((a, b) => b.decided.localeCompare(a.decided)).map((w) => `<div class="line small" data-act="editWish" data-id="${w.id}"><span>${w.icon || "🛍️"}</span><span class="name">${esc(w.name)}</span><span class="chip ${w.status === "let" ? "ok" : ""}">${w.status === "let" ? "lo dejaste ir" : "comprado"}</span><span class="num">${eur(w.price)}</span></div>`).join("")}</div>`;
+  }
+  app.innerHTML = html + `</div>`;
+}
+function wishDialog(id) {
+  db.wish = db.wish || [];
+  const w = id ? db.wish.find((x) => x.id === id) : null;
+  let days = w?.days || 7, icon = w?.icon || WISH_ICONS[0];
+  openDialog(`<form><h3>${w ? "Editar deseo" : "¿Qué quieres comprar?"}</h3>
+    <div class="field"><label>Qué es</label><input name="name" value="${esc(w?.name || "")}" required placeholder="Zapatillas, chaqueta…"></div>
+    <div class="field"><label>Precio €</label><input name="price" inputmode="decimal" value="${w ? String(w.price).replace(".", ",") : ""}" required></div>
+    <div class="field"><label>Ícono</label><div class="chips" id="icons">${WISH_ICONS.map((i) => `<button type="button" data-i="${i}" class="${i === icon ? "on" : ""}">${i}</button>`).join("")}</div></div>
+    <div class="field"><label>Esperar antes de decidir</label><div class="chips" id="days">${[3, 7, 14, 30].map((d) => `<button type="button" data-d="${d}" class="${d === days ? "on" : ""}">${d} días</button>`).join("")}</div></div>
+    <div class="actions">${w ? `<button type="button" class="danger" data-del>Borrar</button><span class="grow"></span>` : ""}<button type="button" data-close>Cancelar</button><button class="primary">${w ? "Guardar" : "A esperar"}</button></div></form>`,
+  (d) => {
+    const f = d.querySelector("form");
+    const pick = (sel, attr, set) => (d.querySelector(sel).onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; set(b.dataset[attr]); d.querySelectorAll(sel + " button").forEach((x) => x.classList.toggle("on", x === b)); });
+    pick("#icons", "i", (v) => (icon = v)); pick("#days", "d", (v) => (days = Number(v)));
+    d.querySelector("[data-close]").onclick = () => d.close();
+    const del = d.querySelector("[data-del]"); if (del) del.onclick = () => { db.wish = db.wish.filter((x) => x !== w); save(); d.close(); render(); };
+    f.onsubmit = (ev) => { ev.preventDefault(); const name = f.name.value.trim(), price = num(f.price.value); if (!name || !price) return;
+      if (w) Object.assign(w, { name, price, icon, days }); else db.wish.push({ id: uid(), name, price, icon, days, added: isoDay(today0()), status: "holding" });
+      save(); d.close(); render(); if (!w) toast(`A esperar ${days} días`); };
+  });
+}
+function wishDecide(id, status) {
+  const w = (db.wish || []).find((x) => x.id === id); if (!w) return;
+  w.status = status; w.decided = isoDay(today0());
+  if (status === "let") { save(); render(); toast(`+${eur(w.price)} a tu frasco`); return; }
+  // bought: not added as an expense here, the purchase shows up when the bank statement is imported
+  save(); render(); toast("Comprado. Aparece en tus gastos cuando importes el extracto");
+}
+
 /* ---------- dialogs ---------- */
 function itemDialog(sec, id) {
   const m = getMonth(state.ym); const list = m[sec]; const it = id ? list.find((x) => x.id === id) : null;
@@ -443,13 +788,13 @@ function itemDialog(sec, id) {
     const base = d.querySelector("[data-base]"); if (base) base.onclick = () => { delete it.manual; save(); d.close(); render(); };
   });
 }
-function expenseDialog(id) {
+function expenseDialog(id, presetCat) {
   let m = getMonth(state.ym);
   if (!m) { const prev = latestBefore(state.ym); m = createMonth(state.ym, prev); }
   const e = id ? m.expenses.find((x) => x.id === id) : null;
   const today = new Date().toISOString().slice(0, 10);
   const defDate = e?.date || (today.slice(0, 7) === state.ym ? today : state.ym + "-01");
-  let cat = e?.cat || db.cats[0];
+  let cat = e?.cat || presetCat || db.cats[0];
   openDialog(`<form method="dialog"><h3>${e ? "Editar gasto" : "Anotar gasto"}</h3>
     <div class="field"><label>Importe €</label><input name="amount" inputmode="decimal" value="${e ? String(e.amount).replace(".", ",") : ""}" required style="font-size:24px;text-align:right"></div>
     <div class="field"><label>Categoría</label><div class="chips" id="catChips">${db.cats.map((c) => `<button type="button" data-cat="${esc(c)}" class="${c === cat ? "on" : ""}">${esc(c)}</button>`).join("")}</div></div>
@@ -635,6 +980,9 @@ function applyBank() {
       if (!line.amount) line.amount = line.paid;
     });
   }
+  // usual payday = the most common day the salary (a rule with shift) arrives
+  const days = txs.filter((t) => t.amount > 0 && classify(t).kind === "income" && classify(t).shift).map((t) => Number(t.date.slice(8, 10))).sort((a, b) => a - b);
+  if (days.length) db.payday = days[Math.floor(days.length / 2)];
   // closed months: drop bank lines the bank never charged (e.g. Radio Tax is quarterly)
   Object.entries(db.months).forEach(([ym, m]) => { if (!isClosed(ym)) return;
     ["income", "fixed", "variable", "savings"].forEach((s) => (m[s] = m[s].filter((x) => x.salary || !(x.auto && x.paid == null)))); });
@@ -713,7 +1061,7 @@ const ruleLabel = (to) => to.kind === "cat" ? to.cat : to.kind === "ignore" || t
 /* ---------- events ---------- */
 document.addEventListener("click", (e) => {
   const t = e.target.closest("[data-act],[data-tab]"); if (!t || dlg.contains(t)) return;
-  if (t.closest("#tabs")) { state.tab = t.dataset.tab; state.spendFilter = ""; saveUi(); render(); scrollTo(0, 0); return; }
+  if (t.closest("#tabs")) { state.tab = t.dataset.tab; state.spendFilter = ""; state.stash = ""; saveUi(); render(); scrollTo(0, 0); return; }
   const a = t.dataset.act;
   switch (a) {
     case "prev": state.ym = ymShift(state.ym, -1); state.spendFilter = ""; render(); break;
@@ -726,6 +1074,21 @@ document.addEventListener("click", (e) => {
     case "editExp": { const ex = getMonth(state.ym)?.expenses.find((x) => x.id === t.dataset.id); if (ex && ex.src === "bank") txDialog(ex.txid); else expenseDialog(t.dataset.id); break; }
     case "filter": state.spendFilter = t.dataset.cat; render(); break;
     case "addDebt": debtDialog(); break;
+    case "addWish": wishDialog(); break;
+    case "metaSeg": state.metaSeg = t.dataset.seg; render(); break;
+    case "addGoal": goalDialog(); break;
+    case "editGoal": goalDialog(t.dataset.id); break;
+    case "pinGoal": db.goalPin = t.dataset.id; save(); render(); scrollTo(0, 0); break;
+    case "goalAdd": e.stopPropagation(); goalAddMoney(t.dataset.id); break;
+    case "openStash": state.stash = t.dataset.cat; render(); scrollTo(0, 0); break;
+    case "stashBack": state.stash = ""; render(); break;
+    case "stashLog": expenseDialog(null, state.stash); break;
+    case "stashLimit": { const c = state.stash, v = prompt(`Límite mensual para ${c} (€). 0 = sin límite`, (db.limits || {})[c] || ""); if (v != null) { db.limits = db.limits || {}; if (num(v) > 0) db.limits[c] = num(v); else delete db.limits[c]; save(); render(); } break; }
+    case "stashTop": { const c = state.stash, v = prompt(`¿Cuánto sumar a ${c} solo este mes? (€)`); if (v != null && num(v)) { const mm = getMonth(state.ym); mm.tops = mm.tops || {}; mm.tops[c] = round2((mm.tops[c] || 0) + num(v)); save(); render(); toast(`+${eur(num(v))} a ${c} este mes`); } break; }
+    case "editWish": wishDialog(t.dataset.id); break;
+    case "wishLet": wishDecide(t.dataset.id, "let"); break;
+    case "wishBuy": wishDecide(t.dataset.id, "bought"); break;
+    case "showDecided": state.showDecided = !state.showDecided; render(); break;
     case "editDebt": debtDialog(t.dataset.id); break;
     case "goMonth": state.ym = t.dataset.ym; state.tab = "month"; saveUi(); render(); scrollTo(0, 0); break;
     case "setBudget": { const v = prompt("Límite mensual para gastos anotados (€). 0 = sin límite", getMonth(state.ym).spendBudget || ""); if (v != null) { getMonth(state.ym).spendBudget = num(v); save(); render(); } break; }
@@ -747,7 +1110,7 @@ document.addEventListener("click", (e) => {
     case "wipe": if (confirm("¿Borrar TODO? Exporta una copia antes si la quieres.") && confirm("¿Seguro?")) { localStorage.removeItem(KEY); db = load(); save(); render(); } break;
   }
 });
-$("#fab").onclick = () => expenseDialog();
+$("#fab").onclick = () => expenseDialog(null, state.tab === "spend" ? state.stash : null);
 $("#fileCsv").onchange = (e) => { const fs = [...e.target.files]; e.target.value = ""; if (fs.length) importCsv(fs); };
 $("#fileJson").onchange = async (e) => { const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try { const d = JSON.parse(await f.text()); if (!d.months) throw 0; if (!confirm("¿Reemplazar todo con esta copia?")) return; d.cats = d.cats || DEFAULT_CATS.slice(); d.debts = d.debts || []; d.tx = d.tx || {}; d.overrides = d.overrides || {}; d.rules = d.rules || defaultRules(); db = d; save(); render(); toast("Copia restaurada"); }
