@@ -189,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.17"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.18"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -227,6 +227,7 @@ function load() {
   d.limits = d.limits || {};
   d.goals = d.goals || [];
   d.prices = d.prices || {};
+  (d.rules || []).forEach((r) => { if (norm(r.match) === "klarna" && r.to && r.to.kind === "debt") r.to.shift = true; });
   return d;
 }
 let db = load();
@@ -1069,7 +1070,7 @@ function defaultRules() {
     R("netflix", { kind: "fixed", name: "Netflix" }),
     R("spotify", { kind: "fixed", name: "Spotify" }),
     R("rundfunk", { kind: "variable", name: "Radio Tax" }),
-    R("klarna", { kind: "debt", name: "Klarna" }, "-"),
+    R("klarna", { kind: "debt", name: "Klarna", shift: true }, "-"), // from the 20th it is paid with next month's salary
     R("klarna", { kind: "cat", cat: "Compras" }, "+"),
     ...C("Comida fuera", "ubereats", "takeaway", "lieferando", "wolt", "neotaste", "mcdonald", "burgerking", "tgtg", "toogoodtogo"),
     ...C("Transporte", "uber", "mvg", "bolt", "flixbus", "voitechnology"),
