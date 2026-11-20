@@ -189,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.19"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-20.20"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -1213,6 +1213,7 @@ async function importCsv(files) {
 /* Personal rules and base salary live in a private setup file, not in this public code. */
 function importSetup(o) {
   if (Array.isArray(o.salary) && o.salary.length) db.salary = o.salary.map((x) => ({ from: x.from, amount: num(x.amount) }));
+  (o.oneoff || []).forEach((id) => (db.oneoff[id] = true)); // movements to keep out of the forecast (one-off spending)
   const mine = (o.rules || []).map((r) => ({ ...r, id: uid() }));
   const key = (r) => norm(r.match) + "|" + (r.sign || "") + "|" + JSON.stringify(r.to);
   const have = new Set(mine.map(key));
