@@ -189,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-21.1"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-21.2"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -779,20 +779,25 @@ async function decryptSync(file, pass) {
   const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: b(o.salt), iterations: 200000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
   return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b(o.iv) }, key, b(o.ct))));
 }
-// new movements only: the same account, day and amount already imported (e.g. from a CSV) counts as the same movement
-function mergeSync(rows) {
-  const have = {}; Object.values(db.tx).forEach((t) => { const k = `${t.acct}|${t.date}|${t.amount}`; have[k] = (have[k] || 0) + 1; });
+/* Adds bank movements that are not there yet. A movement from the other source (statement CSV vs. automatic sync)
+   with the same account and amount up to 3 days apart is the same one: banks date card payments differently. */
+function addTx(rows, src) {
+  const pool = {}; Object.values(db.tx).forEach((t) => { if ((t.src || "csv") === src) return; (pool[`${t.acct}|${t.amount}`] = pool[`${t.acct}|${t.amount}`] || []).push({ t: +new Date(t.date), used: false }); });
+  const same = {}; Object.values(db.tx).forEach((t) => { if ((t.src || "csv") !== src) return; const k = `${t.acct}|${t.date}|${t.amount}`; same[k] = (same[k] || 0) + 1; });
   const seenK = {}, seenId = {}; let added = 0;
-  rows.forEach((r) => {
+  rows.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach((r) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date) || !r.amount) return;
     const k = `${r.acct}|${r.date}|${r.amount}`; seenK[k] = (seenK[k] || 0) + 1;
-    if (seenK[k] <= (have[k] || 0)) return;
+    if (src === "sync" && seenK[k] <= (same[k] || 0)) return; // already synced before
+    const day = +new Date(r.date), c = (pool[`${r.acct}|${r.amount}`] || []).filter((x) => !x.used && Math.abs(x.t - day) <= 3 * 864e5).sort((a, b) => Math.abs(a.t - day) - Math.abs(b.t - day))[0];
+    if (c) { c.used = true; return; } // already there from the other source
     const base = `${k}|${norm(r.who + r.text).slice(0, 60)}`; seenId[base] = (seenId[base] || 0) + 1;
     let id = base + "|" + seenId[base]; while (db.tx[id]) id += "+";
-    db.tx[id] = { acct: r.acct, date: r.date, amount: r.amount, who: r.who || "", text: r.text || "", bankCat: r.bankCat || "", id, src: "sync" }; added++;
+    db.tx[id] = { acct: r.acct, date: r.date, amount: r.amount, who: r.who || "", text: (r.text || "").slice(0, 220), bankCat: r.bankCat || "", id, ...(src === "sync" ? { src } : {}) }; added++;
   });
   return added;
 }
+const mergeSync = (rows) => addTx(rows, "sync");
 async function syncBanks(manual) {
   const c = syncCfg(); if (!c || !c.repo || !c.token || !c.pass) { if (manual) toast("Falta configurar la sincronización"); return; }
   try {
@@ -1277,7 +1282,9 @@ async function importCsv(files) {
       const buf = await f.arrayBuffer(); let text = new TextDecoder("utf-8").decode(buf);
       if (/^\s*\{/.test(text)) { const o = JSON.parse(text); if (o.source === "setup") { importSetup(o); continue; } if (o.source !== "klarna" && o.source !== "debtplan") throw new Error("Ese JSON no es un plan de Klarna ni una configuración (las copias se cargan en Restaurar)"); importKlarna(o); continue; }
       if (text.includes("�")) text = new TextDecoder("windows-1252").decode(buf);
-      bankRows(text).forEach((t) => { total++; if (!db.tx[t.id]) { db.tx[t.id] = t; added++; } });
+      const rows = bankRows(text); total += rows.length;
+      const fresh = rows.filter((t) => !db.tx[t.id]); // exact re-imports are skipped; the rest is checked against synced movements
+      const n0 = Object.keys(db.tx).length; addTx(fresh, "csv"); added += Object.keys(db.tx).length - n0;
     }
     applyBank(); state.tab = "month"; state.ym = ymNow(); saveUi(); render();
     toast(`${added} movimientos nuevos (${total} leídos)`);
@@ -1455,6 +1462,17 @@ async function checkUpdate(manual) {
 }
 if (db.reapply) { delete db.reapply; applyBank(); }
 render();
+/* Coming back from a bank login (bank sync setup): show the address so it can be copied in one go */
+(() => {
+  const q = new URLSearchParams(location.search); if (!q.get("state") || !(q.get("code") || q.get("error"))) return;
+  const back = location.href; history.replaceState(null, "", location.pathname);
+  openDialog(`<form><h3>${q.get("code") ? "Banco conectado ✓" : "El banco no confirmó"}</h3>
+    <p class="small">${q.get("code") ? "Copia este enlace y pégalo en el chat para terminar la conexión." : esc(q.get("error_description") || q.get("error"))}</p>
+    <textarea readonly style="width:100%;height:110px;font-size:12px;word-break:break-all">${esc(back)}</textarea>
+    <div class="actions"><span class="grow"></span><button type="button" data-close>Cerrar</button>${q.get("code") ? `<button class="primary" type="button" data-copy>Copiar</button>` : ""}</div></form>`,
+  (d) => { d.querySelector("[data-close]").onclick = () => d.close();
+    const c = d.querySelector("[data-copy]"); if (c) c.onclick = async () => { try { await navigator.clipboard.writeText(back); toast("Copiado"); } catch (e) { d.querySelector("textarea").select(); toast("Mantén presionado el texto para copiar"); } }; });
+})();
 checkUpdate(false);
 if (syncCfg() && (!db.sync || Date.now() - new Date(db.sync.at) > 20 * 60000)) syncBanks(false);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && syncCfg() && (!db.sync || Date.now() - new Date(db.sync.at) > 20 * 60000)) syncBanks(false); });
