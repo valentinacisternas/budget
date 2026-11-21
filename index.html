@@ -189,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-20.22"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-21.1"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -768,6 +768,72 @@ function chart(rows) {
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Gastos por mes">${ticks}${g}</svg>`;
 }
 
+/* ---------- automatic bank sync ----------
+   A private repo fetches the bank movements a few times a day (Open Banking) and stores them encrypted.
+   This device keeps the repo name, a read-only token and the passphrase; nothing of that is in this code. */
+const SYNC_KEY = KEY + ":sync";
+const syncCfg = () => { try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || null; } catch (e) { return null; } };
+async function decryptSync(file, pass) {
+  const o = JSON.parse(file), b = (x) => Uint8Array.from(atob(x), (c) => c.charCodeAt(0));
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: b(o.salt), iterations: 200000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b(o.iv) }, key, b(o.ct))));
+}
+// new movements only: the same account, day and amount already imported (e.g. from a CSV) counts as the same movement
+function mergeSync(rows) {
+  const have = {}; Object.values(db.tx).forEach((t) => { const k = `${t.acct}|${t.date}|${t.amount}`; have[k] = (have[k] || 0) + 1; });
+  const seenK = {}, seenId = {}; let added = 0;
+  rows.forEach((r) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date) || !r.amount) return;
+    const k = `${r.acct}|${r.date}|${r.amount}`; seenK[k] = (seenK[k] || 0) + 1;
+    if (seenK[k] <= (have[k] || 0)) return;
+    const base = `${k}|${norm(r.who + r.text).slice(0, 60)}`; seenId[base] = (seenId[base] || 0) + 1;
+    let id = base + "|" + seenId[base]; while (db.tx[id]) id += "+";
+    db.tx[id] = { acct: r.acct, date: r.date, amount: r.amount, who: r.who || "", text: r.text || "", bankCat: r.bankCat || "", id, src: "sync" }; added++;
+  });
+  return added;
+}
+async function syncBanks(manual) {
+  const c = syncCfg(); if (!c || !c.repo || !c.token || !c.pass) { if (manual) toast("Falta configurar la sincronización"); return; }
+  try {
+    const r = await fetch(`https://api.github.com/repos/${c.repo}/contents/data.enc`, { headers: { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github.raw+json" }, cache: "no-store" });
+    if (!r.ok) throw new Error(r.status === 404 ? "No encuentro el repo o el archivo" : r.status === 401 ? "El token no sirve" : "GitHub respondió " + r.status);
+    const data = await decryptSync(await r.text(), c.pass).catch(() => { throw new Error("La clave no abre los datos"); });
+    const added = mergeSync(data.rows || []);
+    db.sync = { at: new Date().toISOString(), fetched_at: data.fetched_at, banks: data.banks || [] };
+    if (added) applyBank(); else save();
+    render();
+    const bad = (data.banks || []).filter((x) => !x.ok).map((x) => x.acct);
+    if (manual || added || bad.length) toast(bad.length ? `No se pudo leer: ${bad.join(", ")}` : added ? `${added} movimientos nuevos del banco` : "Ya está todo al día");
+  } catch (e) { if (manual) toast(e.message || "No se pudo sincronizar"); }
+}
+function syncHtml() {
+  const c = syncCfg(), s = db.sync, name = { n26: "N26", commerzbank: "Commerzbank" };
+  const ago = (iso) => { const h = Math.round((Date.now() - new Date(iso)) / 36e5); return h < 1 ? "hace un rato" : h < 48 ? `hace ${h} h` : `hace ${Math.round(h / 24)} días`; };
+  const banks = (s?.banks || []).map((b) => { const days = Math.round((new Date(b.valid_until) - Date.now()) / 864e5);
+    return `<div class="line small"><div class="grow">${name[b.acct] || esc(b.acct)}<div class="${!b.ok || days < 14 ? "" : "muted"}" style="font-size:12px;${!b.ok || days < 14 ? "color:var(--red)" : ""}">${!b.ok ? "no se pudo leer · renueva el permiso" : days < 0 ? "permiso vencido · renuévalo" : `permiso hasta ${b.valid_until.slice(0, 10).split("-").reverse().join(".")}${days < 14 ? " · renuévalo pronto" : ""}`}</div></div></div>`; }).join("");
+  return `<h2>Sincronizar bancos</h2><div class="card">
+    ${c ? `<div class="line"><div class="grow"><b>Automática</b><div class="small muted">${s ? `Datos del banco ${ago(s.fetched_at)} · revisado ${ago(s.at)}` : "Aún no sincroniza"}</div></div><button class="primary" data-act="syncNow">Sincronizar</button></div>${banks}
+      <div style="margin-top:8px"><button class="ghost small" data-act="syncSetup">Cambiar configuración</button></div>`
+      : `<div class="line"><div class="grow"><b>Movimientos automáticos</b><div class="small muted">Lee tus movimientos del banco varias veces al día, sin importar CSV.</div></div><button data-act="syncSetup">Configurar</button></div>`}
+  </div>`;
+}
+function syncDialog() {
+  const c = syncCfg() || {};
+  openDialog(`<form><h3>Sincronizar bancos</h3>
+    <div class="field"><label>Repo privado (usuario/nombre)</label><input name="repo" value="${esc(c.repo || "")}" required autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="field"><label>Token de GitHub (solo lectura)</label><input name="token" type="password" value="${esc(c.token || "")}" required autocomplete="off"></div>
+    <div class="field"><label>Clave de los datos</label><input name="pass" type="password" value="${esc(c.pass || "")}" required autocomplete="off"></div>
+    <p class="small muted">Se guarda solo en este iPhone, no en la copia de seguridad.</p>
+    <div class="actions">${c.repo ? `<button type="button" class="danger" data-off>Desactivar</button><span class="grow"></span>` : ""}<button type="button" data-close>Cancelar</button><button class="primary">Guardar</button></div></form>`,
+  (d) => {
+    const f = d.querySelector("form");
+    d.querySelector("[data-close]").onclick = () => d.close();
+    const off = d.querySelector("[data-off]"); if (off) off.onclick = () => { localStorage.removeItem(SYNC_KEY); d.close(); render(); };
+    f.onsubmit = (ev) => { ev.preventDefault(); localStorage.setItem(SYNC_KEY, JSON.stringify({ repo: f.repo.value.trim(), token: f.token.value.trim(), pass: f.pass.value }));
+      d.close(); render(); syncBanks(true); };
+  });
+}
 function viewMore() {
   const n = Object.keys(db.months).length;
   const txs = Object.values(db.tx); const byAcct = (a) => txs.filter((t) => t.acct === a).map((t) => t.date).sort();
@@ -782,6 +848,7 @@ function viewMore() {
       <div class="line small"><span class="grow">Commerzbank</span><span class="muted">${span("commerzbank")}</span></div>
       <div class="line small"><span class="grow">N26</span><span class="muted">${span("n26")}</span></div>
     </div>
+    ${syncHtml()}
     <h2>Reglas (${db.rules.length}) <button class="ghost" data-act="showRules">${state.showRules ? "Ocultar" : "Ver"}</button></h2>
     ${state.showRules ? `<div class="card">${db.rules.map((r) => `<div class="line small"><span class="name"><b>${esc(r.match)}</b>${r.sign ? ` <span class="muted">(${r.sign === "+" ? "entra" : "sale"})</span>` : ""} → ${esc(ruleLabel(r.to))}</span><button class="icon" data-act="delRule" data-id="${r.id}" aria-label="Borrar regla">×</button></div>`).join("")}
       <div style="margin-top:10px"><button class="ghost small" data-act="resetRules">Volver a las reglas iniciales</button></div></div>` : `<p class="small muted" style="margin:0 4px">Las reglas dicen qué es cada movimiento. Se crean solas cuando categorizas uno en Gastos.</p>`}
@@ -1348,6 +1415,8 @@ document.addEventListener("click", (e) => {
     case "addCat": { const c = (prompt("Nueva categoría") || "").trim(); if (c && !db.cats.includes(c)) { db.cats.push(c); save(); render(); } break; }
     case "delCat": if (db.cats.length > 1 && confirm("¿Quitar la categoría " + t.dataset.cat + "? Los gastos guardados la mantienen.")) { db.cats = db.cats.filter((c) => c !== t.dataset.cat); save(); render(); } break;
     case "update": checkUpdate(true); break;
+    case "syncNow": syncBanks(true); break;
+    case "syncSetup": syncDialog(); break;
     case "wipe": if (confirm("¿Borrar TODO? Exporta una copia antes si la quieres.") && confirm("¿Seguro?")) { localStorage.removeItem(KEY); db = load(); save(); render(); } break;
   }
 });
@@ -1387,6 +1456,8 @@ async function checkUpdate(manual) {
 if (db.reapply) { delete db.reapply; applyBank(); }
 render();
 checkUpdate(false);
+if (syncCfg() && (!db.sync || Date.now() - new Date(db.sync.at) > 20 * 60000)) syncBanks(false);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && syncCfg() && (!db.sync || Date.now() - new Date(db.sync.at) > 20 * 60000)) syncBanks(false); });
 </script>
 </body>
 </html>
