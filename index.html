@@ -189,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-21.3"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-21.4"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -423,6 +423,17 @@ function keptCard(ym) {
     ${t.savings > 0 ? `<div class="small muted" style="margin-top:4px">y además ahorraste ${eur(t.savings)}</div>` : ""}
   </div>`;
 }
+/* Cap for new Klarna spending in one month: purchases from Klarna mails in that month (a plan counts in full,
+   a moved due date counts its fee) against the amount you allow yourself. */
+function klarnaNew(ym) { return round2(sum((db.klarnaMail || []).filter((e) => String(e.at || "").slice(0, 7) === ym),
+  (e) => (e.type === "single" ? e.amount : e.type === "plan" ? e.amount * (e.n || 1) : e.type === "extend" ? e.fee || 0 : 0))); }
+function klarnaCapHtml(ym) {
+  const c = db.klarnaCap; if (!c || c.ym !== ym) return "";
+  const used = klarnaNew(ym), pct = Math.min(100, (used / c.amount) * 100), over = used > c.amount;
+  return `<div class="card" data-act="klarnaCap" style="margin-bottom:10px"><div class="row"><b class="grow">Klarna nuevo · ${ymLabel(ym)}</b><span class="num" style="${over ? "color:var(--red)" : ""}">${eur(used, false)} de ${eur(c.amount, false)}</span></div>
+    <div class="bar"><i style="width:${pct}%;${over ? "background:var(--red)" : used > c.amount * 0.8 ? "background:var(--sun)" : ""}"></i></div>
+    <div class="small muted" style="margin-top:4px">${over ? `Te pasaste por ${eur(used - c.amount, false)}.` : `Te quedan ${eur(c.amount - used, false)}.`} Mejor en 6 cuotas que en "pagar en 30 días".</div></div>`;
+}
 function viewMonth() {
   const m = getMonth(state.ym);
   if (!m) {
@@ -440,7 +451,7 @@ function viewMonth() {
   const debtsThis = db.debts.filter((d) => debtFor(d, state.ym));
   const billsOut = sum([...m.fixed, ...m.variable], (x) => x.paid || 0) + sum(db.debts, (d) => (d.bank && d.bank[state.ym] ? d.payments[state.ym] || 0 : 0));
   const pay = paydayInfo(state.ym, t.left);
-  let html = monthBar() + keptCard(state.ym) + `
+  let html = monthBar() + keptCard(state.ym) + klarnaCapHtml(state.ym) + `
     <div class="hero ${t.left < 0 ? "neg" : ""}">
       ${pay.badge ? `<span class="payday">${pay.badge}</span>` : ""}
       <div class="lbl">Money left</div>
@@ -621,6 +632,7 @@ function debtCard(d) {
     return `<div class="card" data-act="editDebt" data-id="${d.id}">
       <div class="row"><b class="grow">${esc(d.name)}</b><span class="num">quedan <b>${eur(left)}</b></span></div>
       <div class="small muted" style="margin-top:4px">${all.length ? `Terminas en ${ymLabel(all[all.length - 1][0])}` : "Nada pendiente"}${d.planDate ? ` · plan del ${d.planDate.split("-").reverse().join(".")}` : ""}${(db.klarnaMail || []).some((e) => d.base && String(e.at).slice(0, 10) > d.base.date) && norm(d.name) === "klarna" ? " · + mails de Klarna" : ""}</div>
+      ${norm(d.name) === "klarna" ? (db.klarnaCap ? klarnaCapHtml(db.klarnaCap.ym).replace('class="card"', 'class="card" style="margin:8px 0 0;box-shadow:none;background:var(--card-2)"') : `<div style="margin-top:8px"><button class="ghost small" data-act="klarnaCap">+ Tope de compras nuevas</button></div>`) : ""}
       ${(d.notes || []).map((n) => `<div class="small" style="margin-top:6px;padding:6px 10px;border-radius:10px;background:#fdf1d6">⚠️ ${esc(n)}</div>`).join("")}
       ${d.principal ? `<div class="small" style="margin-top:6px">Es el capital. Con intereses pagas en total <b>${eur(withInterest)}</b> en ${all.length} cuotas${d.rate ? ` · tasa ${String(d.rate).replace(".", ",")} %` : ""}.</div>
         ${d.total ? `<div class="bar"><i style="width:${Math.min(100, ((d.total - left) / d.total) * 100)}%"></i></div><div class="small muted" style="margin-top:4px">${eur(d.total - left, false)} de capital pagado de ${eur(d.total, false)}</div>` : ""}` : ""}
@@ -815,7 +827,8 @@ async function syncBanks(manual) {
     if (added) applyBank(); else save();
     render();
     const bad = (data.banks || []).filter((x) => !x.ok).map((x) => x.acct);
-    const kMsg = kNew.length ? ` · Klarna: ${kNew.map((e) => (e.type === "extend" ? "movido " : e.type === "replan" ? "a cuotas " : "") + e.merchant).slice(0, 3).join(", ")}` : "";
+    const capC = db.klarnaCap, capU = capC ? klarnaNew(capC.ym) : 0;
+    const kMsg = kNew.length ? ` · Klarna: ${kNew.map((e) => (e.type === "extend" ? "movido " : e.type === "replan" ? "a cuotas " : "") + e.merchant).slice(0, 3).join(", ")}${capC && kNew.some((e) => String(e.at).slice(0, 7) === capC.ym) ? ` · tope ${eur(capU, false)} de ${eur(capC.amount, false)}` : ""}` : "";
     if (manual || added || bad.length || kNew.length) toast(bad.length ? `No se pudo leer: ${bad.join(", ")}` : (added ? `${added} movimientos nuevos del banco` : kNew.length ? "Klarna actualizado" : "Ya está todo al día") + kMsg);
   } catch (e) { if (manual) toast(e.message || "No se pudo sincronizar"); }
 }
@@ -1434,6 +1447,10 @@ document.addEventListener("click", (e) => {
     case "wishBuy": wishDecide(t.dataset.id, "bought"); break;
     case "showDecided": state.showDecided = !state.showDecided; render(); break;
     case "editDebt": debtDialog(t.dataset.id); break;
+    case "klarnaCap": { const c = db.klarnaCap || {}; const a = prompt("Tope de compras nuevas con Klarna (€). 0 = quitar", c.amount || 300); if (a == null) break;
+      if (!num(a)) { delete db.klarnaCap; save(); render(); break; }
+      const m = prompt("¿Para qué mes? (AAAA-MM)", c.ym || ymNow()); if (!/^\d{4}-\d{2}$/.test(m || "")) break;
+      db.klarnaCap = { ym: m, amount: num(a) }; save(); render(); toast(`Tope Klarna ${ymLabel(m)}: ${eur(num(a))}`); break; }
     case "goMonth": state.ym = t.dataset.ym; state.tab = "month"; saveUi(); render(); scrollTo(0, 0); break;
     case "setBudget": { const v = prompt("Límite mensual para gastos anotados (€). 0 = sin límite", getMonth(state.ym).spendBudget || ""); if (v != null) { getMonth(state.ym).spendBudget = num(v); save(); render(); } break; }
     case "delMonth": if (confirm("¿Borrar " + ymLabel(state.ym) + " con todos sus gastos?")) { delete db.months[state.ym]; db.debts.forEach((d) => delete d.payments[state.ym]); save(); render(); } break;
