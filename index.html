@@ -31,6 +31,10 @@
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  /* short pages (e.g. Metas with one goal) could leave iOS showing a strip under the tab bar:
+     the page always fills the screen, and anything outside it has the tab bar's colour */
+  html { background: var(--card); }
+  body { min-height: 100vh; min-height: 100lvh; box-sizing: border-box; }
   html, body, button, input, select, textarea, a, label { touch-action: manipulation; } /* no double-tap zoom */
   body { font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
     padding: env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom)); }
@@ -114,7 +118,7 @@
   :root { --wish-bg: #f6efe6; --wish-card: #fffaf4; --wish-dark: #2e211c; --wish-accent: #d4664f; --coin: #f2c14e; --coin-edge: #c9952a;
     --lid: #a8744f; --lid-2: #8a5c3c; --glass: #3d4f7a; --glass-edge: #2a3656; }
   @media (prefers-color-scheme: dark) { :root { --wish-bg: #1d1714; --wish-card: #2a221d; --wish-dark: #3a2b24; --wish-accent: #ef8a72; } }
-  body.wishmode, html.wishmode { background: var(--wish-bg); }
+  body.wishmode { background: var(--wish-bg); }
   /* Deudas: the mountain */
   :root { --mtn-sky-1: #f6d9c4; --mtn-sky-2: #f9ece0; --mtn-sun: #f4b860; --mtn-back: #b9c7d6; --mtn-rock: #8d7b6e; --mtn-hill: #6f9e6a;
     --mtn-lake: #6aa7c9; --mtn-trail: #f1e3c6; --mtn-trail-done: #d4664f; --mtn-ink: #2e211c; --mtn-flag: #d4664f; --mtn-me: #f2c14e; }
@@ -191,7 +195,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-21.5"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-21.6"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
