@@ -189,7 +189,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-21.2"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-21.3"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -620,7 +620,8 @@ function debtCard(d) {
     const withInterest = round2(sum(all, ([, v]) => v));
     return `<div class="card" data-act="editDebt" data-id="${d.id}">
       <div class="row"><b class="grow">${esc(d.name)}</b><span class="num">quedan <b>${eur(left)}</b></span></div>
-      <div class="small muted" style="margin-top:4px">${all.length ? `Terminas en ${ymLabel(all[all.length - 1][0])}` : "Nada pendiente"}${d.planDate ? ` · plan del ${d.planDate.split("-").reverse().join(".")}` : ""}</div>
+      <div class="small muted" style="margin-top:4px">${all.length ? `Terminas en ${ymLabel(all[all.length - 1][0])}` : "Nada pendiente"}${d.planDate ? ` · plan del ${d.planDate.split("-").reverse().join(".")}` : ""}${(db.klarnaMail || []).some((e) => d.base && String(e.at).slice(0, 10) > d.base.date) && norm(d.name) === "klarna" ? " · + mails de Klarna" : ""}</div>
+      ${(d.notes || []).map((n) => `<div class="small" style="margin-top:6px;padding:6px 10px;border-radius:10px;background:#fdf1d6">⚠️ ${esc(n)}</div>`).join("")}
       ${d.principal ? `<div class="small" style="margin-top:6px">Es el capital. Con intereses pagas en total <b>${eur(withInterest)}</b> en ${all.length} cuotas${d.rate ? ` · tasa ${String(d.rate).replace(".", ",")} %` : ""}.</div>
         ${d.total ? `<div class="bar"><i style="width:${Math.min(100, ((d.total - left) / d.total) * 100)}%"></i></div><div class="small muted" style="margin-top:4px">${eur(d.total - left, false)} de capital pagado de ${eur(d.total, false)}</div>` : ""}` : ""}
       ${next.length ? `<div style="margin-top:10px">${next.map(([k, v]) => `<div class="row small" style="padding:3px 0"><span style="width:62px" class="muted">${ymLabel(k, true)}</span><div class="grow bar" style="margin:0"><i style="width:${(v / Math.max(...next.map((x) => x[1]))) * 100}%"></i></div><span class="num" style="width:76px;text-align:right">${eur(v)}</span></div>`).join("")}${all.length > next.length ? `<div class="small muted" style="padding-top:4px">y ${all.length - next.length} meses más</div>` : ""}</div>` : ""}
@@ -806,10 +807,16 @@ async function syncBanks(manual) {
     const data = await decryptSync(await r.text(), c.pass).catch(() => { throw new Error("La clave no abre los datos"); });
     const added = mergeSync(data.rows || []);
     db.sync = { at: new Date().toISOString(), fetched_at: data.fetched_at, banks: data.banks || [] };
+    // Klarna mails (new purchases, plans, moved due dates) read by the Gmail script
+    let kNew = [];
+    const rk = await fetch(`https://api.github.com/repos/${c.repo}/contents/klarna.enc`, { headers: { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github.raw+json" }, cache: "no-store" });
+    if (rk.ok) { const k = await decryptSync(await rk.text(), c.pass).catch(() => null);
+      if (k) { const seen = new Set((db.klarnaMail || []).map((e) => e.id)); kNew = (k.events || []).filter((e) => !seen.has(e.id)); db.klarnaMail = k.events || []; rebuildKlarna(); } }
     if (added) applyBank(); else save();
     render();
     const bad = (data.banks || []).filter((x) => !x.ok).map((x) => x.acct);
-    if (manual || added || bad.length) toast(bad.length ? `No se pudo leer: ${bad.join(", ")}` : added ? `${added} movimientos nuevos del banco` : "Ya está todo al día");
+    const kMsg = kNew.length ? ` · Klarna: ${kNew.map((e) => (e.type === "extend" ? "movido " : e.type === "replan" ? "a cuotas " : "") + e.merchant).slice(0, 3).join(", ")}` : "";
+    if (manual || added || bad.length || kNew.length) toast(bad.length ? `No se pudo leer: ${bad.join(", ")}` : (added ? `${added} movimientos nuevos del banco` : kNew.length ? "Klarna actualizado" : "Ya está todo al día") + kMsg);
   } catch (e) { if (manual) toast(e.message || "No se pudo sincronizar"); }
 }
 function syncHtml() {
@@ -1319,6 +1326,28 @@ function importKlarna(o) {
     if (m.principal != null) (d.principal = d.principal || {})[ym] = m.principal;
   });
   d.total = o.total ? round2(o.total) : round2(debtPaid(d) + debtLeft(d));
+  if (norm(name) === "klarna") { d.base = { plan: { ...d.plan }, items: JSON.parse(JSON.stringify(d.planItems)), date: d.planDate }; rebuildKlarna(); }
+}
+/* Klarna plan = the last plan read from Klarna (base) + what Klarna mailed after that date:
+   new purchases, payment plans and moved due dates. Due on the 30th/31st (or the last day of February) = next month. */
+function klarnaYm(iso) { const y = +iso.slice(0, 4), m = +iso.slice(5, 7), day = +iso.slice(8, 10); return day >= Math.min(30, new Date(y, m, 0).getDate()) ? ymShift(iso.slice(0, 7), 1) : iso.slice(0, 7); }
+function rebuildKlarna() {
+  const d = db.debts.find((x) => norm(x.name) === "klarna"); if (!d || !d.plan) return;
+  if (!d.base) d.base = { plan: { ...d.plan }, items: JSON.parse(JSON.stringify(d.planItems || {})), date: d.planDate || "2000-01-01" };
+  const plan = { ...d.base.plan }, items = JSON.parse(JSON.stringify(d.base.items || {})), notes = [];
+  const add = (iso, merchant, amount, inst) => { const ym = klarnaYm(iso); plan[ym] = round2((plan[ym] || 0) + amount);
+    (items[ym] = items[ym] || []).push({ day: +iso.slice(8, 10), merchant, amount, installment: inst || null, mail: true }); };
+  const take = (merchant, amount) => { for (const ym of Object.keys(items).sort()) { const i = items[ym].findIndex((x) => norm(x.merchant) === norm(merchant) && Math.abs(x.amount - amount) < 0.06);
+    if (i >= 0) { items[ym].splice(i, 1); plan[ym] = round2((plan[ym] || 0) - amount); return true; } } return false; };
+  (db.klarnaMail || []).filter((e) => String(e.at || "").slice(0, 10) > d.base.date).forEach((e) => {
+    if (e.type === "single" && e.due) add(e.due, e.merchant, e.amount);
+    else if (e.type === "plan" && e.due) for (let k = 0; k < (e.n || 1); k++) { const y = +e.due.slice(0, 4), m = +e.due.slice(5, 7) + k, yy = y + Math.floor((m - 1) / 12), mm = ((m - 1) % 12) + 1;
+      const day = Math.min(+e.due.slice(8, 10), new Date(yy, mm, 0).getDate()); add(`${yy}-${String(mm).padStart(2, "0")}-${String(day).padStart(2, "0")}`, e.merchant, e.amount, `${k + 1} of ${e.n}`); }
+    else if (e.type === "extend" && e.due) { if (!take(e.merchant, round2(e.amount - (e.fee || 0))) && !take(e.merchant, e.amount)) notes.push(`${e.merchant}: fecha movida, revisa el plan`); add(e.due, e.merchant, e.amount); }
+    else if (e.type === "replan") notes.push(`${e.merchant}: pasado a ${e.n || "varias"} cuotas, pide actualizar el plan`);
+  });
+  Object.keys(plan).forEach((k) => { if (Math.abs(plan[k]) < 0.005) delete plan[k]; });
+  d.plan = plan; d.planItems = items; d.notes = notes;
 }
 /* "+ Nueva" inside a category list: create the category on the spot and return its chip */
 function addCatChip(newBtn) {
