@@ -196,7 +196,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-23.1"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-23.2"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -859,17 +859,24 @@ async function syncBanks(manual) {
     const data = await decryptSync(await r.text(), c.pass).catch(() => { throw new Error("La clave no abre los datos"); });
     const added = mergeSync(data.rows || []);
     db.sync = { at: new Date().toISOString(), fetched_at: data.fetched_at, banks: data.banks || [] };
+    // payment plans put in the repo from the Mac (Klarna read from its website, OTTO, ...): newer than the one here -> load it
+    const plansNew = [];
+    const rp = await fetch(`https://api.github.com/repos/${c.repo}/contents/plans.enc`, { headers: { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github.raw+json" }, cache: "no-store" });
+    if (rp.ok) { const pl = await decryptSync(await rp.text(), c.pass).catch(() => null);
+      (pl?.plans || []).forEach((o) => { const d = db.debts.find((x) => norm(x.name) === norm(o.name || "Klarna"));
+        if (!d || !d.planDate || String(o.date) > d.planDate) { importKlarna(o); plansNew.push(o.name || "Klarna"); } }); }
     // Klarna mails (new purchases, plans, moved due dates) read by the Gmail script
     let kNew = [];
     const rk = await fetch(`https://api.github.com/repos/${c.repo}/contents/klarna.enc`, { headers: { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github.raw+json" }, cache: "no-store" });
     if (rk.ok) { const k = await decryptSync(await rk.text(), c.pass).catch(() => null);
       if (k) { const seen = new Set((db.klarnaMail || []).map((e) => e.id)); kNew = (k.events || []).filter((e) => !seen.has(e.id)); db.klarnaMail = k.events || []; rebuildKlarna(); } }
-    if (added) applyBank(); else save();
+    if (added || plansNew.length) applyBank(); else save();
     render();
     const bad = (data.banks || []).filter((x) => !x.ok).map((x) => x.acct);
     const capC = db.klarnaCap, capU = capC ? klarnaNew(capC.ym) : 0;
     const kMsg = kNew.length ? ` · Klarna: ${kNew.map((e) => (e.type === "extend" ? "movido " : e.type === "replan" ? "a cuotas " : "") + e.merchant).slice(0, 3).join(", ")}${capC && kNew.some((e) => String(e.at).slice(0, 7) === capC.ym) ? ` · tope ${eur(capU, false)} de ${eur(capC.amount, false)}` : ""}` : "";
-    if (manual || added || bad.length || kNew.length) toast(bad.length ? `No se pudo leer: ${bad.join(", ")}` : (added ? `${added} movimientos nuevos del banco` : kNew.length ? "Klarna actualizado" : "Ya está todo al día") + kMsg);
+    const pMsg = plansNew.length ? ` · plan nuevo: ${plansNew.join(", ")}` : "";
+    if (manual || added || bad.length || kNew.length || plansNew.length) toast(bad.length ? `No se pudo leer: ${bad.join(", ")}` : (added ? `${added} movimientos nuevos del banco` : kNew.length || plansNew.length ? "Planes actualizados" : "Ya está todo al día") + pMsg + kMsg);
   } catch (e) { if (manual) toast(e.message || "No se pudo sincronizar"); }
 }
 function syncHtml() {
