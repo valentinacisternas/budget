@@ -196,7 +196,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-21.7"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-23.1"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -525,6 +525,39 @@ function stashNumbers(m, cat, ym) {
 function expRow(e) {
   return `<div class="line" data-act="editExp" data-id="${e.id}"><span class="small muted num" style="width:44px">${e.date ? e.date.slice(8, 10) + "." + e.date.slice(5, 7) : ""}</span><span class="name">${esc(e.note || e.cat)}${e.note && !state.stash ? ` <span class="tag">${esc(e.cat)}</span>` : ""}${e.oneoff ? ` <span class="tag" style="background:var(--sun-soft);color:var(--sun)">único</span>` : ""}${e.src === "bank" ? ` <span class="tag">${e.acct === "n26" ? "N26" : "CB"}</span>` : ""}</span><span class="num">${eur(e.amount)}</span></div>`;
 }
+/* Suggested monthly limit per category: what you usually spend (median of your normal months, one-offs left out),
+   rounded up to 5 €. Moves between accounts and unsorted movements get no suggestion. */
+function suggestedLimits() {
+  const h = spendHistory(); if (!h) return {};
+  const skip = new Set([UNCAT, N26CAT, "Transferencias"]), out = {};
+  h.byCat.forEach(([c, v]) => { if (!skip.has(c) && v >= 5) out[c] = Math.ceil(v / 5) * 5; });
+  return out;
+}
+function limitsDialog() {
+  const sg = suggestedLimits(), cats = Object.keys(sg).sort((a, b) => sg[b] - sg[a]);
+  if (!cats.length) { toast("Faltan meses con extractos para sugerir"); return; }
+  const cur = db.limits || {};
+  openDialog(`<form><h3>Límites sugeridos</h3>
+    <p class="small muted" style="margin-top:-6px">Lo que gastas normalmente en cada categoría. Ajusta los montos y guarda: valen para este mes y los siguientes.</p>
+    <div style="max-height:52vh;overflow:auto;margin:0 -4px;padding:0 4px">${cats.map((c) => `<div class="row" style="align-items:center;padding:4px 0">
+      <label class="grow small" style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-c="${esc(c)}" checked style="width:auto"> ${catIcon(c)} ${esc(c)}${cur[c] ? `<span class="muted"> · hoy ${eur(cur[c], false)}</span>` : ""}</label>
+      <input class="amt" data-v="${esc(c)}" inputmode="decimal" value="${String(cur[c] || sg[c]).replace(".", ",")}" style="width:84px;text-align:right"></div>`).join("")}</div>
+    <div class="row" style="gap:8px;margin-top:10px"><button type="button" class="ghost small" data-pct="0.9">−10 %</button><button type="button" class="ghost small" data-reset>Sugeridos</button>
+      <span class="grow"></span><span class="small muted" id="limTot"></span></div>
+    <div class="actions"><span class="grow"></span><button type="button" data-close>Cancelar</button><button class="primary">Guardar</button></div></form>`,
+  (d) => {
+    const f = d.querySelector("form"), inputs = [...d.querySelectorAll("[data-v]")];
+    const tot = () => (d.querySelector("#limTot").textContent = "Total " + eur(sum(inputs.filter((i) => d.querySelector(`[data-c="${CSS.escape(i.dataset.v)}"]`).checked), (i) => num(i.value)), false) + " / mes");
+    d.oninput = tot; d.onchange = tot; tot();
+    d.querySelector("[data-pct]").onclick = () => { inputs.forEach((i) => (i.value = String(Math.ceil((num(i.value) * 0.9) / 5) * 5))); tot(); };
+    d.querySelector("[data-reset]").onclick = () => { inputs.forEach((i) => (i.value = String(sg[i.dataset.v]))); tot(); };
+    d.querySelector("[data-close]").onclick = () => d.close();
+    f.onsubmit = (ev) => { ev.preventDefault(); db.limits = db.limits || {};
+      inputs.forEach((i) => { const c = i.dataset.v, on = d.querySelector(`[data-c="${CSS.escape(c)}"]`).checked, v = num(i.value);
+        if (on && v > 0) db.limits[c] = v; else if (!on) delete db.limits[c]; });
+      save(); d.close(); render(); toast("Límites guardados para todos los meses"); };
+  });
+}
 function viewSpend() {
   const m = getMonth(state.ym);
   let html = monthBar();
@@ -537,7 +570,7 @@ function viewSpend() {
     .sort((a, b) => (b.limit > 0) - (a.limit > 0) || b.spent - a.spent);
   const unc = list.filter((e) => e.cat === UNCAT).length;
   if (unc && state.spendFilter !== UNCAT) html += `<div class="card" data-act="filter" data-cat="${UNCAT}" style="background:var(--sun-soft)"><b>${unc} movimientos sin categoría</b><div class="small">Tócalos para decir qué son. La app recuerda tu respuesta para los próximos.</div></div>`;
-  html += `<h2>Bolsillos <span class="small muted" style="text-transform:none;letter-spacing:0">toca uno para ponerle límite</span></h2>`;
+  html += `<h2>Bolsillos <button class="ghost" data-act="suggestLimits">Sugerir límites</button></h2><p class="small muted" style="margin:-4px 4px 8px">Toca uno para ponerle límite. Los límites valen para todos los meses.</p>`;
   if (!cats.length) html += `<div class="card muted small">Anota gastos con el botón + o importa un extracto.</div>`;
   html += `<div class="stashes">${cats.map((x) => {
     const over = x.limit && x.left < 0;
@@ -1447,7 +1480,8 @@ document.addEventListener("click", (e) => {
     case "openStash": state.stash = t.dataset.cat; render(); app.scrollTo(0, 0); break;
     case "stashBack": state.stash = ""; render(); break;
     case "stashLog": expenseDialog(null, state.stash); break;
-    case "stashLimit": { const c = state.stash, v = prompt(`Límite mensual para ${c} (€). 0 = sin límite`, (db.limits || {})[c] || ""); if (v != null) { db.limits = db.limits || {}; if (num(v) > 0) db.limits[c] = num(v); else delete db.limits[c]; save(); render(); } break; }
+    case "suggestLimits": limitsDialog(); break;
+    case "stashLimit": { const c = state.stash, sg = suggestedLimits()[c], v = prompt(`Límite mensual para ${c} (€). 0 = sin límite${sg ? `\nSugerido según tus meses: ${sg} €` : ""}`, (db.limits || {})[c] || sg || ""); if (v != null) { db.limits = db.limits || {}; if (num(v) > 0) db.limits[c] = num(v); else delete db.limits[c]; save(); render(); } break; }
     case "stashTop": { const c = state.stash, v = prompt(`¿Cuánto sumar a ${c} solo este mes? (€)`); if (v != null && num(v)) { const mm = getMonth(state.ym); mm.tops = mm.tops || {}; mm.tops[c] = round2((mm.tops[c] || 0) + num(v)); save(); render(); toast(`+${eur(num(v))} a ${c} este mes`); } break; }
     case "editWish": wishDialog(t.dataset.id); break;
     case "wishLet": wishDecide(t.dataset.id, "let"); break;
