@@ -31,14 +31,15 @@
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); }
-  /* short pages (e.g. Metas with one goal) could leave iOS showing a strip under the tab bar:
-     the page always fills the screen, and anything outside it has the tab bar's colour */
-  html { background: var(--card); }
-  body { min-height: 100vh; min-height: 100lvh; box-sizing: border-box; }
+  /* App layout: the screen never scrolls, only <main> does, and the tab bar sits under it in the layout.
+     (A fixed bar at bottom:0 ends up above the edge on iOS home-screen apps.) */
+  html { background: var(--card); height: 100%; overflow: hidden; }
+  body { height: 100vh; height: 100lvh; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; }
   html, body, button, input, select, textarea, a, label { touch-action: manipulation; } /* no double-tap zoom */
   body { font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-    padding: env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom)); }
-  main { max-width: 640px; margin: 0 auto; padding: 12px 16px 24px; }
+    padding: env(safe-area-inset-top) 0 0; }
+  main { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    padding: 12px max(16px, calc((100% - 608px) / 2)) 96px; }
   h1 { font-size: 26px; margin: 8px 0 2px; letter-spacing: -.02em; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 22px 4px 8px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
   .sub { color: var(--muted); margin: 0 0 12px; }
@@ -83,7 +84,7 @@
   .bar { height: 8px; background: var(--card-2); border-radius: 99px; overflow: hidden; margin-top: 8px; }
   .bar > i { display: block; height: 100%; background: var(--plum); border-radius: 99px; }
 
-  nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line);
+  nav.tabs { position: relative; flex-shrink: 0; background: var(--card); border-top: 1px solid var(--line);
     display: flex; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); z-index: 10; }
   /* iOS can leave the bar a little above the bottom edge (e.g. after the keyboard closes): paint below it too */
   nav.tabs::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 200px; background: var(--card); }
@@ -195,7 +196,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-21.6"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-21.7"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -1420,7 +1421,7 @@ const ruleLabel = (to) => to.kind === "cat" ? to.cat : to.kind === "ignore" || t
 /* ---------- events ---------- */
 document.addEventListener("click", (e) => {
   const t = e.target.closest("[data-act],[data-tab]"); if (!t || dlg.contains(t)) return;
-  if (t.closest("#tabs")) { state.tab = t.dataset.tab; state.spendFilter = ""; state.stash = ""; saveUi(); render(); scrollTo(0, 0); return; }
+  if (t.closest("#tabs")) { state.tab = t.dataset.tab; state.spendFilter = ""; state.stash = ""; saveUi(); render(); app.scrollTo(0, 0); return; }
   const a = t.dataset.act;
   switch (a) {
     case "editSub": subDialog(t.dataset.key); break;
@@ -1431,7 +1432,7 @@ document.addEventListener("click", (e) => {
     case "next": state.ym = ymShift(state.ym, 1); state.spendFilter = ""; render(); break;
     case "newFrom": createMonth(state.ym, t.dataset.from); render(); toast("Mes creado"); break;
     case "newBlank": createMonth(state.ym, null); render(); break;
-    case "tab": state.tab = t.dataset.tab; saveUi(); render(); scrollTo(0, 0); break;
+    case "tab": state.tab = t.dataset.tab; saveUi(); render(); app.scrollTo(0, 0); break;
     case "addItem": itemDialog(t.dataset.sec); break;
     case "editItem": itemDialog(t.dataset.sec, t.dataset.id); break;
     case "editExp": { const ex = getMonth(state.ym)?.expenses.find((x) => x.id === t.dataset.id); if (ex && ex.src === "bank") txDialog(ex.txid); else expenseDialog(t.dataset.id); break; }
@@ -1441,9 +1442,9 @@ document.addEventListener("click", (e) => {
     case "metaSeg": state.metaSeg = t.dataset.seg; render(); break;
     case "addGoal": goalDialog(); break;
     case "editGoal": goalDialog(t.dataset.id); break;
-    case "pinGoal": db.goalPin = t.dataset.id; save(); render(); scrollTo(0, 0); break;
+    case "pinGoal": db.goalPin = t.dataset.id; save(); render(); app.scrollTo(0, 0); break;
     case "goalAdd": e.stopPropagation(); goalAddMoney(t.dataset.id); break;
-    case "openStash": state.stash = t.dataset.cat; render(); scrollTo(0, 0); break;
+    case "openStash": state.stash = t.dataset.cat; render(); app.scrollTo(0, 0); break;
     case "stashBack": state.stash = ""; render(); break;
     case "stashLog": expenseDialog(null, state.stash); break;
     case "stashLimit": { const c = state.stash, v = prompt(`Límite mensual para ${c} (€). 0 = sin límite`, (db.limits || {})[c] || ""); if (v != null) { db.limits = db.limits || {}; if (num(v) > 0) db.limits[c] = num(v); else delete db.limits[c]; save(); render(); } break; }
@@ -1457,7 +1458,7 @@ document.addEventListener("click", (e) => {
       if (!num(a)) { delete db.klarnaCap; save(); render(); break; }
       const m = prompt("¿Para qué mes? (AAAA-MM)", c.ym || ymNow()); if (!/^\d{4}-\d{2}$/.test(m || "")) break;
       db.klarnaCap = { ym: m, amount: num(a) }; save(); render(); toast(`Tope Klarna ${ymLabel(m)}: ${eur(num(a))}`); break; }
-    case "goMonth": state.ym = t.dataset.ym; state.tab = "month"; saveUi(); render(); scrollTo(0, 0); break;
+    case "goMonth": state.ym = t.dataset.ym; state.tab = "month"; saveUi(); render(); app.scrollTo(0, 0); break;
     case "setBudget": { const v = prompt("Límite mensual para gastos anotados (€). 0 = sin límite", getMonth(state.ym).spendBudget || ""); if (v != null) { getMonth(state.ym).spendBudget = num(v); save(); render(); } break; }
     case "delMonth": if (confirm("¿Borrar " + ymLabel(state.ym) + " con todos sus gastos?")) { delete db.months[state.ym]; db.debts.forEach((d) => delete d.payments[state.ym]); save(); render(); } break;
     case "pickCsv": $("#fileCsv").click(); break;
@@ -1481,13 +1482,13 @@ document.addEventListener("click", (e) => {
 });
 /* "Atrás": remembers where you were (tab, month, filter, bolsillo, scroll) before each move */
 const NAV = ["tab", "ym", "spendFilter", "stash", "metaSeg"];
-const navSnap = () => ({ ...Object.fromEntries(NAV.map((k) => [k, state[k] || ""])), y: scrollY });
+const navSnap = () => ({ ...Object.fromEntries(NAV.map((k) => [k, state[k] || ""])), y: app.scrollTop });
 const navKey = (x) => NAV.map((k) => x[k] || "").join("|");
 let navStack = [], navPre = null;
 const navShow = () => ($("#back").hidden = !navStack.length);
 document.addEventListener("click", (e) => { navPre = dlg.contains(e.target) || e.target.closest("#back") ? null : navSnap(); }, true);
 document.addEventListener("click", () => { if (navPre && navKey(navPre) !== navKey(navSnap())) { navStack.push(navPre); if (navStack.length > 40) navStack.shift(); } navPre = null; navShow(); });
-$("#back").onclick = () => { const p = navStack.pop(); if (!p) return; NAV.forEach((k) => (state[k] = p[k])); saveUi(); render(); scrollTo(0, p.y); navShow(); };
+$("#back").onclick = () => { const p = navStack.pop(); if (!p) return; NAV.forEach((k) => (state[k] = p[k])); saveUi(); render(); app.scrollTo(0, p.y); navShow(); };
 // swipe the page left/right on Mes and Gastos to change month
 let swX = null, swY = 0;
 document.addEventListener("touchstart", (e) => { const t = e.touches[0]; swX = (state.tab === "month" || state.tab === "spend") && !e.target.closest(".mstrip, dialog, input, canvas, svg") && e.touches.length === 1 ? t.clientX : null; swY = t.clientY; }, { passive: true });
@@ -1526,7 +1527,7 @@ render();
     const c = d.querySelector("[data-copy]"); if (c) c.onclick = async () => { try { await navigator.clipboard.writeText(back); toast("Copiado"); } catch (e) { d.querySelector("textarea").select(); toast("Mantén presionado el texto para copiar"); } }; });
 })();
 // iOS home-screen apps sometimes keep the page shifted after the keyboard closes; nudge it back into place
-const iosNudge = () => setTimeout(() => window.scrollTo(window.scrollX, window.scrollY), 60);
+const iosNudge = () => setTimeout(() => window.scrollTo(0, 0), 60);
 document.addEventListener("focusout", iosNudge);
 if (window.visualViewport) visualViewport.addEventListener("resize", iosNudge);
 checkUpdate(false);
