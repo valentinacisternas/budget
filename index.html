@@ -196,7 +196,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-25.2"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-25.3"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -377,7 +377,9 @@ function debtLeft(d, uptoYm) {
    still due (from the debt's plan); future months = the plan. Debts without a plan use their payments. */
 function debtFor(d, ym) {
   const hasBank = !!(d.bank && d.bank[ym]), planned = d.plan && d.plan[ym] != null && !isClosed(ym) ? d.plan[ym] : 0;
-  if (hasBank || (d.plan && d.plan[ym] != null)) return round2((hasBank ? d.payments[ym] || 0 : 0) + planned);
+  // paid ahead in the provider's app but not booked by the bank yet: count it until the bank shows it
+  const ahead = d.prepaid && d.prepaid.ym === ym ? Math.max(0, d.prepaid.amount - (hasBank ? d.payments[ym] || 0 : 0)) : 0;
+  if (hasBank || (d.plan && d.plan[ym] != null)) return round2((hasBank ? d.payments[ym] || 0 : 0) + planned + ahead);
   if (d.payments[ym] != null) return Number(d.payments[ym]) || 0;
   // manual debt with a monthly instalment: count it in open months until it is paid off
   if (d.closed || isClosed(ym) || !d.monthly) return 0;
@@ -682,6 +684,7 @@ function debtCard(d) {
       <div class="row"><b class="grow">${esc(d.name)}</b><span class="num">quedan <b>${eur(left)}</b></span></div>
       <div class="small muted" style="margin-top:4px">${all.length ? `Terminas en ${ymLabel(all[all.length - 1][0])}` : "Nada pendiente"}${d.planDate ? ` · plan del ${d.planDate.split("-").reverse().join(".")}` : ""}${(db.klarnaMail || []).some((e) => d.base && String(e.at).slice(0, 10) > d.base.date) && norm(d.name) === "klarna" ? " · + mails de Klarna" : ""}</div>
       ${norm(d.name) === "klarna" ? (db.klarnaCap ? klarnaCapHtml(db.klarnaCap.ym).replace('class="card"', 'class="card" style="margin:8px 0 0;box-shadow:none;background:var(--card-2)"') : `<div style="margin-top:8px"><button class="ghost small" data-act="klarnaCap">+ Tope de compras nuevas</button></div>`) : ""}
+      ${d.prepaid && (() => { const left = Math.max(0, d.prepaid.amount - (d.bank && d.bank[d.prepaid.ym] ? d.payments[d.prepaid.ym] || 0 : 0)); return left > 0.5 ? `<div class="small muted" style="margin-top:6px">Pagado por adelantado para ${ymLabel(d.prepaid.ym).toLowerCase()}: ${eur(d.prepaid.amount, false)} · el banco aún no muestra ${eur(left, false)}</div>` : ""; })() || ""}
       ${(d.notes || []).map((n) => `<div class="small" style="margin-top:6px;padding:6px 10px;border-radius:10px;background:#fdf1d6">⚠️ ${esc(n)}</div>`).join("")}
       ${d.principal ? `<div class="small" style="margin-top:6px">Es el capital. Con intereses pagas en total <b>${eur(withInterest)}</b> en ${all.length} cuotas${d.rate ? ` · tasa ${String(d.rate).replace(".", ",")} %` : ""}.</div>
         ${d.total ? `<div class="bar"><i style="width:${Math.min(100, ((d.total - left) / d.total) * 100)}%"></i></div><div class="small muted" style="margin-top:4px">${eur(d.total - left, false)} de capital pagado de ${eur(d.total, false)}</div>` : ""}` : ""}
@@ -873,7 +876,8 @@ async function syncBanks(manual) {
     const rp = await fetch(`https://api.github.com/repos/${c.repo}/contents/plans.enc`, { headers: { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github.raw+json" }, cache: "no-store" });
     if (rp.ok) { const pl = await decryptSync(await rp.text(), c.pass).catch(() => null);
       (pl?.plans || []).forEach((o) => { const d = db.debts.find((x) => norm(x.name) === norm(o.name || "Klarna"));
-        if (!d || !d.planDate || String(o.date) > d.planDate) { importKlarna(o); plansNew.push(o.name || "Klarna"); } }); }
+        const ver = (x, r) => `${x || ""}#${String(r || 0).padStart(3, "0")}`;
+        if (!d || !d.planDate || ver(o.date, o.rev) > ver(d.planDate, d.planRev)) { importKlarna(o); plansNew.push(o.name || "Klarna"); } }); }
     // Klarna mails (new purchases, plans, moved due dates) read by the Gmail script
     let kNew = [];
     const rk = await fetch(`https://api.github.com/repos/${c.repo}/contents/klarna.enc`, { headers: { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github.raw+json" }, cache: "no-store" });
@@ -1390,6 +1394,8 @@ function importKlarna(o) {
   let d = db.debts.find((x) => norm(x.name) === norm(name));
   if (!d) { d = { id: uid(), name, total: 0, monthly: 0, payments: {}, closed: false }; db.debts.push(d); }
   d.plan = {}; d.planItems = {}; d.planDate = o.date || new Date().toISOString().slice(0, 10); d.closed = false;
+  d.planRev = o.rev || 0;
+  d.prepaid = o.prepaid && o.prepaid.amount > 0 ? { ym: o.prepaid.ym, amount: round2(o.prepaid.amount) } : null;
   delete d.principal; if (o.rate) d.rate = o.rate;
   Object.entries(o.months || {}).forEach(([ym, m]) => {
     const due = (m.items || []).filter((it) => it.section === "due");
