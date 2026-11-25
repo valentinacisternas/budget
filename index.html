@@ -196,7 +196,7 @@
 
 <script>
 "use strict";
-const APP_VERSION = "2026-11-23.2"; // bump on every release; the app compares it with the published page
+const APP_VERSION = "2026-11-25.2"; // bump on every release; the app compares it with the published page
 /* ---------- data ---------- */
 const KEY = "budget-app:v1";
 const SECTIONS = [
@@ -207,6 +207,11 @@ const SECTIONS = [
 ];
 const UNCAT = "Sin categoría";
 const N26CAT = "N26 (día a día)";
+/* Business trip: paid by you, paid back by the employer with the salary at the end of the following month,
+   which belongs to the budget two months later (spent in December -> salary end of January -> February). */
+const BIZ = "Viaje de trabajo", BIZ_LAG = 2;
+function bizRefund(ym) { const src = db.months[ymShift(ym, -BIZ_LAG)]; return src ? round2(sum(src.expenses.filter((e) => e.cat === BIZ))) : 0; }
+const salaryArrived = (m) => m.income.some((x) => x.salary && x.paid != null);
 const DEFAULT_CATS = ["Supermercado", "Comida fuera", "Transporte", "Casa", "Salud", "Ropa", "Ocio", "Cuidado personal", "Compras", "Efectivo",
   "Suscripciones", "Viajes", "Regalos", "Seguros", "Transferencias", N26CAT, "Otros", UNCAT];
 
@@ -234,6 +239,7 @@ function load() {
   d.limits = d.limits || {};
   d.goals = d.goals || [];
   d.prices = d.prices || {};
+  if (d.cats && !d.cats.includes(BIZ)) d.cats.splice(Math.max(0, d.cats.indexOf(UNCAT)), 0, BIZ);
   // N26 instalments used to be a variable line: now they are a debt (repayments) plus a refund of the split purchase
   const i26 = (d.rules || []).findIndex((r) => norm(r.match) === "n26aplazos" && r.to && r.to.kind === "variable");
   if (i26 >= 0) {
@@ -316,7 +322,7 @@ function spendHistory() {
   const n26 = new Set(Object.values(db.tx).filter((t) => t.acct === "n26").map((t) => t.date.slice(0, 7)));
   const yms = Object.keys(db.months).filter((ym) => isClosed(ym) && db.months[ym].expenses.some((e) => e.src === "bank") && (!n26.size || n26.has(ym))).sort().slice(-6);
   if (!yms.length) return null;
-  const normal = (ym) => db.months[ym].expenses.filter((e) => !e.oneoff); // one-off (a flight, a big purchase) never counts
+  const normal = (ym) => db.months[ym].expenses.filter((e) => !e.oneoff && e.cat !== BIZ); // one-off (a flight, a big purchase) never counts
   const totalsBy = yms.map((ym) => sum(normal(ym)));
   const sorted = totalsBy.slice().sort((a, b) => a - b), mid = Math.floor(sorted.length / 2);
   const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
@@ -335,7 +341,7 @@ function forecast(n) {
     const ym = ymShift(ymNow(), i), real = db.months[ym];
     const m = real || planFrom(prevPlan, before); if (!real) ensureSalaryVirtual(m);
     const s = (list, sec) => sum(list, (x) => eff(x, ym, sec));
-    const income = s(m.income, "income"), fixed = s(m.fixed, "fixed") + s(m.variable, "variable") + s(m.oneTime, "oneTime"), savings = s(m.savings, "savings");
+    const income = s(m.income, "income") + (salaryArrived(m) ? 0 : bizRefund(ym)), fixed = s(m.fixed, "fixed") + s(m.variable, "variable") + s(m.oneTime, "oneTime"), savings = s(m.savings, "savings");
     const debt = sum(db.debts.filter((d) => !d.closed), (d) => (d.plan ? debtFor(d, ym) : d.payments[ym] != null ? Number(d.payments[ym]) : d.monthly || 0));
     const logged = sum(m.expenses || []), spend = Math.max(h.median, logged);
     out.push({ ym, income, fixed, debt, savings, spend, left: income - fixed - debt - savings - spend, real: !!real });
@@ -352,7 +358,8 @@ function eff(x, ym, sec) { if (x.salary) return x.paid != null ? x.paid : x.manu
   return x.paid != null ? x.paid : x.auto && (sec === "income" || isClosed(ym)) ? 0 : Number(x.amount) || 0; }
 function totals(m, ym) {
   const s = (list, sec) => sum(list, (x) => eff(x, ym, sec));
-  const income = s(m.income, "income"), fixed = s(m.fixed), variable = s(m.variable), oneTime = s(m.oneTime), savings = s(m.savings);
+  const refund = salaryArrived(m) ? 0 : bizRefund(ym);
+  const income = s(m.income, "income") + refund, fixed = s(m.fixed), variable = s(m.variable), oneTime = s(m.oneTime), savings = s(m.savings);
   const debt = sum(db.debts, (d) => debtFor(d, ym));
   const spent = sum(m.expenses);
   const planned = fixed + variable + oneTime + debt;
@@ -472,6 +479,8 @@ function viewMonth() {
       </div>
     </div>`;
   html += section("income", "Ingresos", m.income, "Sueldo neto, extras");
+  { const r = bizRefund(state.ym), src = ymShift(state.ym, -BIZ_LAG);
+    if (r) html += `<div class="card small" style="margin-top:8px;display:flex;align-items:center;gap:8px">💼<span class="grow">Reembolso viaje de trabajo<br><span class="muted">gastos de ${ymLabel(src).toLowerCase()} · ${salaryArrived(m) ? "ya viene en el sueldo" : "llega con el sueldo"}</span></span><span class="num">${eur(r)}</span></div>`; }
   SECTIONS.forEach((s) => (html += section(s.id, s.label, m[s.id], s.hint)));
   const pend = [...m.income, ...m.fixed, ...m.variable, ...m.savings].filter((x) => x.auto && x.paid == null && !isClosed(state.ym));
   if (pend.length && Object.keys(db.tx).length) html = html.replace(`<h2>Ingresos`, `<div class="card small" style="margin-top:10px"><b>${pend.length} cargos pendientes</b> según el plan: ${pend.map((x) => esc(x.name)).join(", ")}.</div><h2>Ingresos`);
@@ -508,7 +517,7 @@ function section(id, label, list, hint) {
 
 /* Category budgets ("bolsillos"): every category can get a monthly limit; the card shows what is left
    and how much that is per day for the rest of the month. */
-const CAT_ICON = { Supermercado: "🛒", "Comida fuera": "🍔", Transporte: "🚇", Casa: "🏠", Salud: "💊", Ropa: "👗", Ocio: "🎮",
+const CAT_ICON = { "Viaje de trabajo": "💼", Supermercado: "🛒", "Comida fuera": "🍔", Transporte: "🚇", Casa: "🏠", Salud: "💊", Ropa: "👗", Ocio: "🎮",
   "Cuidado personal": "💅", Compras: "🛍️", Efectivo: "💶", Suscripciones: "📺", Viajes: "✈️", Regalos: "🎁", Seguros: "🛡️",
   Transferencias: "🔁", [N26CAT]: "💳", Otros: "📦", [UNCAT]: "❓" };
 const catIcon = (c) => CAT_ICON[c] || "🏷️";
@@ -529,7 +538,7 @@ function expRow(e) {
    rounded up to 5 €. Moves between accounts and unsorted movements get no suggestion. */
 function suggestedLimits() {
   const h = spendHistory(); if (!h) return {};
-  const skip = new Set([UNCAT, N26CAT, "Transferencias"]), out = {};
+  const skip = new Set([UNCAT, N26CAT, "Transferencias", BIZ]), out = {};
   h.byCat.forEach(([c, v]) => { if (!skip.has(c) && v >= 5) out[c] = Math.ceil(v / 5) * 5; });
   return out;
 }
@@ -1299,11 +1308,14 @@ function classify(t) {
 /* Rebuild every bank-derived number from db.tx + rules. Safe to run again and again. */
 function applyBank() {
   const txs = Object.values(db.tx).sort((a, b) => a.date.localeCompare(b.date)); if (!txs.length) return;
+  // the day the salary arrived in each calendar month: instalments paid from that day on are paid with next month's money
+  const salDay = {}; txs.forEach((t) => { if (t.amount > 0) { const c = classify(t); if (c.kind === "income" && c.shift && +t.date.slice(8, 10) >= 20) { const k = t.date.slice(0, 7); salDay[k] = Math.min(salDay[k] || 99, +t.date.slice(8, 10)); } } });
   const n26Months = new Set(txs.filter((t) => t.acct === "n26").map((t) => t.date.slice(0, 7)));
   const byYm = {};
   txs.forEach((t) => { const to = classify(t); let ym = t.date.slice(0, 7);
-    // salary and rent from the 20th belong to next month; instalments ("end") only from the 30th, or the last day of February
-    if (to.shift && Number(t.date.slice(8, 10)) >= (to.shift === "end" ? Math.min(30, new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate()) : 20)) ym = ymShift(ym, 1);
+    // salary and rent from the 20th belong to next month; instalments ("end") from the 30th (last day of February),
+    // or earlier if that month's salary already arrived
+    if (to.shift && Number(t.date.slice(8, 10)) >= (to.shift === "end" ? Math.min(30, new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0).getDate(), salDay[ym] || 99) : 20)) ym = ymShift(ym, 1);
     (byYm[ym] = byYm[ym] || []).push([t, to]); });
   const first = txs[0].date.slice(0, 7);
   const last = [ymNow(), ...Object.keys(byYm)].sort().pop();
